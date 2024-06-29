@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, ops::DerefMut};
 
 use super::{
     icfpstring::ICFPString,
@@ -96,6 +96,33 @@ impl Node {
                 second.visit_mut(f);
             }
             Node::Lambda(_, _, child) => child.visit_mut(f),
+        }
+    }
+
+    pub fn substitute(&mut self, i: i64, node: &Node) {
+        match self {
+            Node::Boolean(_, _) | Node::Integer(_, _) | Node::String(_, _) => {}
+            Node::Unary(_, _, child) => child.substitute(i, node),
+            Node::Binary(_, _, child1, child2) => {
+                child1.substitute(i, node);
+                child2.substitute(i, node);
+            }
+            Node::If(_, pred, first, second) => {
+                pred.substitute(i, node);
+                first.substitute(i, node);
+                second.substitute(i, node);
+            }
+            Node::Lambda(_, j, child) => {
+                // 同名の束縛変数がある場合は置換しない
+                if i != *j {
+                    child.substitute(i, node);
+                }
+            }
+            Node::Variable(_, j) => {
+                if i == *j {
+                    *self = node.clone();
+                }
+            }
         }
     }
 
@@ -207,19 +234,19 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
             match opcode {
                 UnaryOpecode::Negate => match child {
                     Node::Integer(_, i) => Ok(Node::Integer(id, -i)),
-                    _ => Err(ParseError::InvalidUnaryNegateOperand),
+                    _ => Ok(Node::Unary(id, UnaryOpecode::Negate, Box::new(child))),
                 },
                 UnaryOpecode::Not => match child {
                     Node::Boolean(_, b) => Ok(Node::Boolean(id, !b)),
-                    _ => Err(ParseError::InvalidUnaryNotOperand),
+                    _ => Ok(Node::Unary(id, UnaryOpecode::Not, Box::new(child))),
                 },
                 UnaryOpecode::StrToInt => match child {
                     Node::String(_, s) => Ok(Node::Integer(id, s.to_i64())),
-                    _ => Err(ParseError::InvalidUnaryStrToIntOperand),
+                    _ => Ok(Node::Unary(id, UnaryOpecode::StrToInt, Box::new(child))),
                 },
                 UnaryOpecode::IntToStr => match child {
                     Node::Integer(_, i) => Ok(Node::String(id, ICFPString::from_i64(i))),
-                    _ => Err(ParseError::InvalidUnaryIntToStrOperand),
+                    _ => Ok(Node::Unary(id, UnaryOpecode::IntToStr, Box::new(child))),
                 },
             }
         }
@@ -228,28 +255,19 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
             let child2 = evaluate(*child2)?;
 
             match opcode {
-                BinaryOpecode::Apply => {
-                    match child1 {
-                        Node::Lambda(_, i, child) => {
-                            let mut child = *child;
-                            child.visit_mut(&mut |node| {
-                                if let Node::Variable(_, j) = node {
-                                    if *j == i {
-                                        // FIXME: unique id generator を使わないといけなさそうだ…
-                                        *node = child2.clone();
-                                    }
-                                }
-                            });
-                            Ok(evaluate(child)?)
-                        }
-                        _ => Ok(Node::Binary(
-                            id,
-                            BinaryOpecode::Apply,
-                            Box::new(child1),
-                            Box::new(child2),
-                        )),
+                BinaryOpecode::Apply => match child1 {
+                    Node::Lambda(_, i, child) => {
+                        let mut child = *child;
+                        child.substitute(i, &child2);
+                        Ok(evaluate(child)?)
                     }
-                }
+                    _ => Ok(Node::Binary(
+                        id,
+                        BinaryOpecode::Apply,
+                        Box::new(child1),
+                        Box::new(child2),
+                    )),
+                },
                 BinaryOpecode::Add => match (&child1, &child2) {
                     (Node::Integer(_, i1), Node::Integer(_, i2)) => Ok(Node::Integer(id, i1 + i2)),
                     _ => Ok(Node::Binary(
