@@ -234,19 +234,19 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
             match opcode {
                 UnaryOpecode::Negate => match child {
                     Node::Integer(_, i) => Ok(Node::Integer(id, -i)),
-                    _ => Err(ParseError::InvalidUnaryNegateOperand),
+                    _ => Ok(Node::Unary(id, UnaryOpecode::Negate, Box::new(child))),
                 },
                 UnaryOpecode::Not => match child {
                     Node::Boolean(_, b) => Ok(Node::Boolean(id, !b)),
-                    _ => Err(ParseError::InvalidUnaryNotOperand),
+                    _ => Ok(Node::Unary(id, UnaryOpecode::Not, Box::new(child))),
                 },
                 UnaryOpecode::StrToInt => match child {
                     Node::String(_, s) => Ok(Node::Integer(id, s.to_i64())),
-                    _ => Err(ParseError::InvalidUnaryStrToIntOperand),
+                    _ => Ok(Node::Unary(id, UnaryOpecode::StrToInt, Box::new(child))),
                 },
                 UnaryOpecode::IntToStr => match child {
                     Node::Integer(_, i) => Ok(Node::String(id, ICFPString::from_i64(i))),
-                    _ => Err(ParseError::InvalidUnaryIntToStrOperand),
+                    _ => Ok(Node::Unary(id, UnaryOpecode::IntToStr, Box::new(child))),
                 },
             }
         }
