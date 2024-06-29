@@ -35,8 +35,8 @@ pub enum TokenType {
     Unary(UnaryOpecode),
     Binary(BinaryOpecode),
     If,
-    Lambda(i64),
-    Variable(i64),
+    Lambda(u32),
+    Variable(u32),
 }
 
 pub fn tokenize(input: String) -> Result<Vec<TokenType>, ParseError> {
@@ -83,12 +83,12 @@ pub fn tokenize(input: String) -> Result<Vec<TokenType>, ParseError> {
             'L' => {
                 let s = ICFPString::from_str(chars[1..].to_vec())?;
                 let num = s.to_i64();
-                ret.push(TokenType::Lambda(num));
+                ret.push(TokenType::Lambda(num as u32));
             }
             'v' => {
                 let s = ICFPString::from_str(chars[1..].to_vec())?;
                 let num = s.to_i64();
-                ret.push(TokenType::Variable(num));
+                ret.push(TokenType::Variable(num as u32));
             }
             _ => return Err(ParseError::InvalidToken),
         }

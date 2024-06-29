@@ -44,6 +44,7 @@ fn main() -> Result<(), anyhow::Error> {
             }
             _ => {
                 println!("cannot reduce to string: {:?}", result_node);
+                println!("result_node.to_dot_string()");
                 Err(anyhow::anyhow!("cannot reduce to string"))
             }
         }

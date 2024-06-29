@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use core::{client::ICFPCClient, parser::icfpstring::ICFPString};
 use std::fs;
 use std::path::PathBuf;
@@ -8,12 +8,24 @@ use std::path::PathBuf;
 #[command(name = "file_reader")]
 #[command(about = "A simple file reader")]
 struct Args {
-    /// ファイルパス
-    #[arg(short, long)]
-    file: PathBuf,
-
     #[arg(short, long)]
     encode: bool,
+
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    File {
+        #[arg(short, long)]
+        file: PathBuf,
+    },
+
+    Direct {
+        #[arg(short, long)]
+        message: String,
+    },
 }
 
 fn get_content(path: &PathBuf) -> Result<String, anyhow::Error> {
@@ -24,7 +36,11 @@ fn get_content(path: &PathBuf) -> Result<String, anyhow::Error> {
 async fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
 
-    let contents = get_content(&args.file)?;
+    let contents = match args.command {
+        Commands::File { file } => get_content(&file)?,
+        Commands::Direct { message } => message,
+    };
+
     let auth_token = "5b4a264f-5e00-433c-ac1b-1f9a8b30f161".to_string();
     let client = ICFPCClient::new(auth_token);
 
@@ -37,6 +53,6 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let response_message = client.post_message(message).await?;
-    eprintln!("{}", response_message);
+    println!("{}", response_message);
     Ok(())
 }
