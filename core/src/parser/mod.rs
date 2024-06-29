@@ -2,7 +2,7 @@ pub mod ast;
 pub mod icfpstring;
 pub mod tokenizer;
 
-use std::fmt::Display;
+use std::{collections::VecDeque, fmt::Display};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ParseError {
@@ -67,4 +67,13 @@ impl Display for ParseError {
             ParseError::InvalidBinaryLambdaOperand => write!(f, "Invalid binary lambda operand"),
         }
     }
+}
+
+pub fn parse(input: String) -> Result<ast::Node, ParseError> {
+    let token_list = tokenizer::tokenize(input)?;
+    let mut queue = VecDeque::from_iter(token_list);
+    let mut id = 0;
+    let ast = ast::parse(&mut queue, &mut id)?;
+    let evaluated_ast = ast::evaluate(ast)?;
+    Ok(evaluated_ast)
 }

@@ -4,4 +4,4 @@ members = [
     "core", 
     "macro-util",
     "message-sender"
-]
+, "translator"]
