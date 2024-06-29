@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use super::{icfpstring::ICFPString, tokenizer::TokenType, ParseError};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Boolean(bool),
     Integer(i64),
@@ -134,13 +134,7 @@ pub fn parse(token_stream: &mut VecDeque<TokenType>) -> Result<Node, ParseError>
             }
             TokenType::Variable(i) => Node::Variable(*i),
         };
-
-        // 残りのトークンが消費できなかった場合は、文法エラーとして扱う
-        if !token_stream.is_empty() {
-            Err(ParseError::CannotConsumeToken)
-        } else {
-            Ok(node)
-        }
+        Ok(node)
     } else {
         Err(ParseError::CannotFindNextToken)
     }
@@ -223,7 +217,7 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
             let child1 = evaluate(*child1)?;
             let child2 = evaluate(*child2)?;
             match (child1, child2) {
-                (Node::Integer(i1), Node::Integer(i2)) => Ok(Node::Boolean(i1 > i2)),
+                (Node::Integer(i1), Node::Integer(i2)) => Ok(Node::Boolean(i1 < i2)),
                 _ => Err(ParseError::InvalidBinaryLtOperand),
             }
         }
@@ -231,7 +225,7 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
             let child1 = evaluate(*child1)?;
             let child2 = evaluate(*child2)?;
             match (child1, child2) {
-                (Node::Integer(i1), Node::Integer(i2)) => Ok(Node::Boolean(i1 < i2)),
+                (Node::Integer(i1), Node::Integer(i2)) => Ok(Node::Boolean(i1 > i2)),
                 _ => Err(ParseError::InvalidBinaryGtOperand),
             }
         }
@@ -304,5 +298,110 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
         Node::Lambda(i, child) => {
             todo!();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::tokenizer::tokenize;
+
+    fn test_sequence(input: &str, expected: Node) {
+        let token_list = tokenize(input.to_string()).unwrap();
+        let mut token_stream = VecDeque::from(token_list);
+        let node = parse(&mut token_stream).unwrap();
+        let result = evaluate(node).unwrap();
+        assert_eq!(result, expected);
+    }
+
+    // testcase is generated from https://icfpcontest2024.github.io/icfp.html
+
+    #[test]
+    fn test_add() {
+        test_sequence("B+ I# I$", Node::Integer(5));
+    }
+
+    #[test]
+    fn test_sub() {
+        test_sequence("B- I$ I#", Node::Integer(1));
+    }
+
+    #[test]
+    fn test_mul() {
+        test_sequence("B* I# I$", Node::Integer(6));
+    }
+
+    #[test]
+    fn test_div() {
+        test_sequence("B/ U- I( I#", Node::Integer(-3));
+    }
+
+    #[test]
+    fn test_mod() {
+        test_sequence("B% U- I( I#", Node::Integer(-1));
+    }
+
+    #[test]
+    fn test_gt() {
+        test_sequence("B< I$ I#", Node::Boolean(false));
+        test_sequence("B< I# I$", Node::Boolean(true));
+    }
+
+    #[test]
+    fn test_lt() {
+        test_sequence("B> I$ I#", Node::Boolean(true));
+        test_sequence("B> I# I$", Node::Boolean(false));
+    }
+
+    #[test]
+    fn test_eq() {
+        test_sequence("B= I$ I#", Node::Boolean(false));
+        test_sequence("B= I$ B+ I# I\"", Node::Boolean(true));
+
+        test_sequence("B= S# S#", Node::Boolean(true));
+        test_sequence("B= S# S$", Node::Boolean(false));
+
+        test_sequence("B= T B= F F", Node::Boolean(true));
+        test_sequence("B= F B= F F", Node::Boolean(false));
+    }
+
+    #[test]
+    fn test_and() {
+        test_sequence("B& T F", Node::Boolean(false));
+        test_sequence("B& T T", Node::Boolean(true));
+    }
+
+    #[test]
+    fn test_or() {
+        test_sequence("B| T F", Node::Boolean(true));
+        test_sequence("B| F F", Node::Boolean(false));
+    }
+
+    #[test]
+    fn test_concat() {
+        let expected = ICFPString::from_str("#$".chars().collect()).unwrap();
+        test_sequence("B. S# S$", Node::String(expected));
+    }
+
+    #[test]
+    fn test_take() {
+        let expected = ICFPString::from_str("#a".chars().collect()).unwrap();
+        test_sequence("BT I# S#agc4gs", Node::String(expected));
+    }
+
+    #[test]
+    fn test_drop() {
+        let expected = ICFPString::from_str("gc4gs".chars().collect()).unwrap();
+        test_sequence("BD I# S#agc4gs", Node::String(expected));
+    }
+
+    #[test]
+    fn test_if() {
+        test_sequence("? T I# I$", Node::Integer(2));
+        test_sequence("? F I# I$", Node::Integer(3));
+        test_sequence(
+            "? B> I# I$ S9%3 S./",
+            Node::String(ICFPString::from_str("./".chars().collect()).unwrap()),
+        );
     }
 }

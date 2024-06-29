@@ -1,7 +1,7 @@
 use super::icfpstring::ICFPString;
 use super::ParseError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Boolean(bool),
     Integer(i64),
@@ -27,19 +27,6 @@ pub enum TokenType {
     If,
     Lambda(i64),
     Variable(i64),
-}
-
-impl PartialEq for TokenType {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Boolean(l0), Self::Boolean(r0)) => l0 == r0,
-            (Self::Integer(l0), Self::Integer(r0)) => l0 == r0,
-            (Self::String(l0), Self::String(r0)) => l0 == r0,
-            (Self::Lambda(l0), Self::Lambda(r0)) => l0 == r0,
-            (Self::Variable(l0), Self::Variable(r0)) => l0 == r0,
-            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
-        }
-    }
 }
 
 pub fn tokenize(input: String) -> Result<Vec<TokenType>, ParseError> {
