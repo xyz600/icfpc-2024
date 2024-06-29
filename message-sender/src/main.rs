@@ -53,6 +53,6 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let response_message = client.post_message(message).await?;
-    eprintln!("{}", response_message);
+    println!("{}", response_message);
     Ok(())
 }
