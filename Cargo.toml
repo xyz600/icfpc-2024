@@ -1,6 +1,7 @@
 [workspace]
 
 members = [ 
-    "core",
+    "core", 
+    "macro-util",
     "message-sender"
-]
+, "translator"]
