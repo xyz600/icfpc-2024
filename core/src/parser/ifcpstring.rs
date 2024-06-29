@@ -32,6 +32,17 @@ impl ICFPString {
         Ok(ICFPString { s })
     }
 
+    pub fn from_i64(input: i64) -> ICFPString {
+        let mut s = vec![];
+        let mut input = input;
+        while input > 0 {
+            s.push((input % 94) as u8);
+            input /= 94;
+        }
+        s.reverse();
+        ICFPString { s }
+    }
+
     pub fn to_string(&self) -> Result<Vec<char>, ParseError> {
         let mut ret = vec![];
         for index in self.s.iter() {
@@ -41,6 +52,14 @@ impl ICFPString {
             ret.push(ch);
         }
         Ok(ret)
+    }
+
+    pub fn to_i64(&self) -> i64 {
+        let mut ret = 0;
+        for index in self.s.iter() {
+            ret = ret * 94 + *index as i64;
+        }
+        ret
     }
 
     pub fn len(&self) -> usize {
@@ -144,5 +163,23 @@ mod tests_rawstr {
         for (i, &ch) in output.iter().enumerate() {
             assert_eq!(ch, expected[i]);
         }
+    }
+
+    #[test]
+    fn test_fromi64() {
+        let input = 1337;
+        let output = ICFPString::from_i64(input).to_string().unwrap();
+        let expected = to_vec_char("/6");
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_toi64() {
+        let input = to_vec_char("/6");
+        let s = ICFPString::from_str(input).unwrap();
+        let output = s.to_i64();
+        let expected = 1337;
+        assert_eq!(output, expected);
     }
 }
