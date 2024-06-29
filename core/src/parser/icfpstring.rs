@@ -21,6 +21,11 @@ impl ICFPString {
         ICFPString { s }
     }
 
+    pub fn from_rawstr(input: &str) -> Result<ICFPString, ParseError> {
+        let input = input.chars().collect::<Vec<_>>();
+        ICFPString::from_str(input)
+    }
+
     pub fn from_str(input: Vec<char>) -> Result<ICFPString, ParseError> {
         let mut s = vec![];
         for ch in input.iter() {
