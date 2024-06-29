@@ -1,32 +1,10 @@
-use std::{collections::VecDeque, fmt::Binary};
+use std::collections::VecDeque;
 
-use super::{icfpstring::ICFPString, tokenizer::TokenType, ParseError};
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum UnaryOpecode {
-    Negate,
-    Not,
-    StrToInt,
-    IntToStr,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum BinaryOpecode {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Modulo,
-    IntegerLarger,
-    IntegerSmaller,
-    Equal,
-    Or,
-    And,
-    StrConcat,
-    TakeStr,
-    DropStr,
-    Apply,
-}
+use super::{
+    icfpstring::ICFPString,
+    tokenizer::{BinaryOpecode, TokenType, UnaryOpecode},
+    ParseError,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -66,115 +44,14 @@ pub fn parse(token_stream: &mut VecDeque<TokenType>) -> Result<Node, ParseError>
             TokenType::Boolean(b) => Node::Boolean(*b),
             TokenType::Integer(i) => Node::Integer(*i),
             TokenType::String(s) => Node::String(s.clone()),
-            TokenType::UnaryNegate => {
+            TokenType::Unary(opcode) => {
                 let operand = parse(token_stream)?;
-                Node::Unary(UnaryOpecode::Negate, Box::new(operand))
+                Node::Unary(*opcode, Box::new(operand))
             }
-            TokenType::UnaryNot => {
-                let operand = parse(token_stream)?;
-                Node::Unary(UnaryOpecode::Not, Box::new(operand))
-            }
-            TokenType::UnaryStrToInt => {
-                let operand = parse(token_stream)?;
-                Node::Unary(UnaryOpecode::StrToInt, Box::new(operand))
-            }
-            TokenType::UnaryIntToStr => {
-                let operand = parse(token_stream)?;
-                Node::Unary(UnaryOpecode::IntToStr, Box::new(operand))
-            }
-            TokenType::BinaryAdd => {
+            TokenType::Binary(opcode) => {
                 let operand1 = parse(token_stream)?;
                 let operand2 = parse(token_stream)?;
-                Node::Binary(BinaryOpecode::Add, Box::new(operand1), Box::new(operand2))
-            }
-            TokenType::BinarySub => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(BinaryOpecode::Sub, Box::new(operand1), Box::new(operand2))
-            }
-            TokenType::BinaryMul => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(BinaryOpecode::Mul, Box::new(operand1), Box::new(operand2))
-            }
-            TokenType::BinaryDiv => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(BinaryOpecode::Div, Box::new(operand1), Box::new(operand2))
-            }
-            TokenType::BinaryModulo => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(
-                    BinaryOpecode::Modulo,
-                    Box::new(operand1),
-                    Box::new(operand2),
-                )
-            }
-            TokenType::BinaryIntegerLarger => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(
-                    BinaryOpecode::IntegerLarger,
-                    Box::new(operand1),
-                    Box::new(operand2),
-                )
-            }
-            TokenType::BinaryIntegerSmaller => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(
-                    BinaryOpecode::IntegerSmaller,
-                    Box::new(operand1),
-                    Box::new(operand2),
-                )
-            }
-            TokenType::BinaryEqual => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(BinaryOpecode::Equal, Box::new(operand1), Box::new(operand2))
-            }
-            TokenType::BinaryOr => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(BinaryOpecode::Or, Box::new(operand1), Box::new(operand2))
-            }
-            TokenType::BinaryAnd => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(BinaryOpecode::And, Box::new(operand1), Box::new(operand2))
-            }
-            TokenType::BinaryStrConcat => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(
-                    BinaryOpecode::StrConcat,
-                    Box::new(operand1),
-                    Box::new(operand2),
-                )
-            }
-            TokenType::BinaryTakeStr => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(
-                    BinaryOpecode::TakeStr,
-                    Box::new(operand1),
-                    Box::new(operand2),
-                )
-            }
-            TokenType::BinaryDropStr => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(
-                    BinaryOpecode::DropStr,
-                    Box::new(operand1),
-                    Box::new(operand2),
-                )
-            }
-            TokenType::BinaryApply => {
-                let operand1 = parse(token_stream)?;
-                let operand2 = parse(token_stream)?;
-                Node::Binary(BinaryOpecode::Apply, Box::new(operand1), Box::new(operand2))
+                Node::Binary(*opcode, Box::new(operand1), Box::new(operand2))
             }
             TokenType::If => {
                 let operand1 = parse(token_stream)?;
