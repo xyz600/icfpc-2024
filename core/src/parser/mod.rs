@@ -1,33 +1,7 @@
-pub mod ifcpstring;
+pub mod icfpstring;
+pub mod tokenizer;
 
 use std::fmt::Display;
-
-pub enum TokenType {
-    BooleanTrue,
-    BooleanFalse,
-    Integer(i64),
-    String(String),
-    UnaryNegate,
-    UnaryNot,
-    UnaryStrToInt,
-    UnaryIntToStr,
-    BinaryAdd,
-    BinarySub,
-    BinaryMul,
-    BinaryDiv,
-    BinaryModulo,
-    BinaryIntegerLarger,
-    BinaryIntegerSmaller,
-    BinaryEqual,
-    BinaryOr,
-    BinaryAnd,
-    BinaryStrConcat,
-    BinaryTakeStr,
-    BinaryDropStr,
-    BinaryApply,
-    If,
-    Lambda(i64),
-}
 
 #[derive(thiserror::Error, Debug)]
 pub enum ParseError {
