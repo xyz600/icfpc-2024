@@ -223,79 +223,14 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
             }
         }
         Node::Binary(id, opcode, child1, child2) => {
-            let child1 = evaluate(*child1)?;
-            let child2 = evaluate(*child2)?;
             match opcode {
-                BinaryOpecode::Add => match (child1, child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => Ok(Node::Integer(id, i1 + i2)),
-                    _ => Err(ParseError::InvalidBinaryAddOperand),
-                },
-                BinaryOpecode::Sub => match (child1, child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => Ok(Node::Integer(id, i1 - i2)),
-                    _ => Err(ParseError::InvalidBinarySubOperand),
-                },
-                BinaryOpecode::Mul => match (child1, child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => Ok(Node::Integer(id, i1 * i2)),
-                    _ => Err(ParseError::InvalidBinaryMulOperand),
-                },
-                BinaryOpecode::Div => {
-                    // FIXME: check truncated towards zero
-                    match (child1, child2) {
-                        (Node::Integer(_, i1), Node::Integer(_, i2)) => {
-                            Ok(Node::Integer(id, i1 / i2))
-                        }
-                        _ => Err(ParseError::InvalidBinaryDivOperand),
-                    }
-                }
-                BinaryOpecode::Modulo => match (child1, child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => Ok(Node::Integer(id, i1 % i2)),
-                    _ => Err(ParseError::InvalidBinaryModOperand),
-                },
-                BinaryOpecode::IntegerLarger => match (child1, child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => Ok(Node::Boolean(id, i1 < i2)),
-                    _ => Err(ParseError::InvalidBinaryLtOperand),
-                },
-                BinaryOpecode::IntegerSmaller => match (child1, child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => Ok(Node::Boolean(id, i1 > i2)),
-                    _ => Err(ParseError::InvalidBinaryGtOperand),
-                },
-                BinaryOpecode::Equal => match (child1, child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => Ok(Node::Boolean(id, i1 == i2)),
-                    (Node::String(_, s1), Node::String(_, s2)) => Ok(Node::Boolean(id, s1 == s2)),
-                    (Node::Boolean(_, b1), Node::Boolean(_, b2)) => Ok(Node::Boolean(id, b1 == b2)),
-                    _ => Err(ParseError::InvalidBinaryEqOperand),
-                },
-                BinaryOpecode::Or => match (child1, child2) {
-                    (Node::Boolean(_, b1), Node::Boolean(_, b2)) => Ok(Node::Boolean(id, b1 || b2)),
-                    _ => Err(ParseError::InvalidBinaryOrOperand),
-                },
-                BinaryOpecode::And => match (child1, child2) {
-                    (Node::Boolean(_, b1), Node::Boolean(_, b2)) => Ok(Node::Boolean(id, b1 && b2)),
-                    _ => Err(ParseError::InvalidBinaryAndOperand),
-                },
-                BinaryOpecode::StrConcat => match (child1, child2) {
-                    (Node::String(_, s1), Node::String(_, s2)) => {
-                        Ok(Node::String(id, s1.concat(&s2)))
-                    }
-                    _ => Err(ParseError::InvalidBinaryConcatOperand),
-                },
-                BinaryOpecode::TakeStr => match (child1, child2) {
-                    (Node::Integer(_, i), Node::String(_, s)) => {
-                        Ok(Node::String(id, s.take(i as usize)))
-                    }
-                    _ => Err(ParseError::InvalidBinaryTakeOperand),
-                },
-                BinaryOpecode::DropStr => match (child1, child2) {
-                    (Node::Integer(_, i), Node::String(_, s)) => {
-                        Ok(Node::String(id, s.drop(i as usize)))
-                    }
-                    _ => Err(ParseError::InvalidBinaryDropOperand),
-                },
                 BinaryOpecode::Apply => {
-                    // NOTE: どのような順序で簡約しても影響がないと仮定している
-                    // 1. child2 を eval する
-                    // 2. child1 が Lambda だったら、 child1 の中の Variable(i) をみつけて、 child2 に置き換える
-                    // 3. child1 が Lambda でなかったら、 child1 と child2 を評価をしつつ、そのまま返す
+                    // NOTE: 先に簡約してしまうと上手く動かないケースを見つけてしまったので、置き換えてから評価する
+                    // 1. child1 が Lambda だったら、 child1 の中の Variable(i) をみつけて、 child2 に置き換える
+                    // 2. child1 が Lambda でなかったら、 child1 と child2 を評価をしつつ、そのまま返す
+
+                    let child1 = *child1;
+                    let child2 = *child2;
 
                     match child1 {
                         Node::Lambda(_, i, child) => {
@@ -308,7 +243,8 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
                                     }
                                 }
                             });
-                            Ok(child)
+                            eprintln!("{:?}", child);
+                            Ok(evaluate(child)?)
                         }
                         _ => Ok(Node::Binary(
                             id,
@@ -316,6 +252,103 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
                             Box::new(child1),
                             Box::new(child2),
                         )),
+                    }
+                }
+                _ => {
+                    let child1 = evaluate(*child1)?;
+                    let child2 = evaluate(*child2)?;
+
+                    match opcode {
+                        BinaryOpecode::Add => match (child1, child2) {
+                            (Node::Integer(_, i1), Node::Integer(_, i2)) => {
+                                Ok(Node::Integer(id, i1 + i2))
+                            }
+                            _ => Err(ParseError::InvalidBinaryAddOperand),
+                        },
+                        BinaryOpecode::Sub => match (child1, child2) {
+                            (Node::Integer(_, i1), Node::Integer(_, i2)) => {
+                                Ok(Node::Integer(id, i1 - i2))
+                            }
+                            _ => Err(ParseError::InvalidBinarySubOperand),
+                        },
+                        BinaryOpecode::Mul => match (child1, child2) {
+                            (Node::Integer(_, i1), Node::Integer(_, i2)) => {
+                                Ok(Node::Integer(id, i1 * i2))
+                            }
+                            _ => Err(ParseError::InvalidBinaryMulOperand),
+                        },
+                        BinaryOpecode::Div => {
+                            // FIXME: check truncated towards zero
+                            match (child1, child2) {
+                                (Node::Integer(_, i1), Node::Integer(_, i2)) => {
+                                    Ok(Node::Integer(id, i1 / i2))
+                                }
+                                _ => Err(ParseError::InvalidBinaryDivOperand),
+                            }
+                        }
+                        BinaryOpecode::Modulo => match (child1, child2) {
+                            (Node::Integer(_, i1), Node::Integer(_, i2)) => {
+                                Ok(Node::Integer(id, i1 % i2))
+                            }
+                            _ => Err(ParseError::InvalidBinaryModOperand),
+                        },
+                        BinaryOpecode::IntegerLarger => match (child1, child2) {
+                            (Node::Integer(_, i1), Node::Integer(_, i2)) => {
+                                Ok(Node::Boolean(id, i1 < i2))
+                            }
+                            _ => Err(ParseError::InvalidBinaryLtOperand),
+                        },
+                        BinaryOpecode::IntegerSmaller => match (child1, child2) {
+                            (Node::Integer(_, i1), Node::Integer(_, i2)) => {
+                                Ok(Node::Boolean(id, i1 > i2))
+                            }
+                            _ => Err(ParseError::InvalidBinaryGtOperand),
+                        },
+                        BinaryOpecode::Equal => match (child1, child2) {
+                            (Node::Integer(_, i1), Node::Integer(_, i2)) => {
+                                Ok(Node::Boolean(id, i1 == i2))
+                            }
+                            (Node::String(_, s1), Node::String(_, s2)) => {
+                                Ok(Node::Boolean(id, s1 == s2))
+                            }
+                            (Node::Boolean(_, b1), Node::Boolean(_, b2)) => {
+                                Ok(Node::Boolean(id, b1 == b2))
+                            }
+                            _ => Err(ParseError::InvalidBinaryEqOperand),
+                        },
+                        BinaryOpecode::Or => match (child1, child2) {
+                            (Node::Boolean(_, b1), Node::Boolean(_, b2)) => {
+                                Ok(Node::Boolean(id, b1 || b2))
+                            }
+                            _ => Err(ParseError::InvalidBinaryOrOperand),
+                        },
+                        BinaryOpecode::And => match (child1, child2) {
+                            (Node::Boolean(_, b1), Node::Boolean(_, b2)) => {
+                                Ok(Node::Boolean(id, b1 && b2))
+                            }
+                            _ => Err(ParseError::InvalidBinaryAndOperand),
+                        },
+                        BinaryOpecode::StrConcat => match (child1, child2) {
+                            (Node::String(_, s1), Node::String(_, s2)) => {
+                                Ok(Node::String(id, s1.concat(&s2)))
+                            }
+                            _ => Err(ParseError::InvalidBinaryConcatOperand),
+                        },
+                        BinaryOpecode::TakeStr => match (child1, child2) {
+                            (Node::Integer(_, i), Node::String(_, s)) => {
+                                Ok(Node::String(id, s.take(i as usize)))
+                            }
+                            _ => Err(ParseError::InvalidBinaryTakeOperand),
+                        },
+                        BinaryOpecode::DropStr => match (child1, child2) {
+                            (Node::Integer(_, i), Node::String(_, s)) => {
+                                Ok(Node::String(id, s.drop(i as usize)))
+                            }
+                            _ => Err(ParseError::InvalidBinaryDropOperand),
+                        },
+                        BinaryOpecode::Apply => {
+                            unreachable!("Apply should be handled in the outer match")
+                        }
                     }
                 }
             }
