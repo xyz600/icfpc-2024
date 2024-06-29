@@ -1,7 +1,7 @@
 use super::icfpstring::ICFPString;
 use super::ParseError;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TokenType {
     Boolean(bool),
     Integer(i64),
@@ -26,6 +26,7 @@ pub enum TokenType {
     BinaryApply,
     If,
     Lambda(i64),
+    Variable(i64),
 }
 
 impl PartialEq for TokenType {
@@ -35,6 +36,7 @@ impl PartialEq for TokenType {
             (Self::Integer(l0), Self::Integer(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
             (Self::Lambda(l0), Self::Lambda(r0)) => l0 == r0,
+            (Self::Variable(l0), Self::Variable(r0)) => l0 == r0,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
@@ -85,6 +87,11 @@ pub fn tokenize(input: String) -> Result<Vec<TokenType>, ParseError> {
                 let s = ICFPString::from_str(chars[1..].to_vec())?;
                 let num = s.to_i64();
                 ret.push(TokenType::Lambda(num));
+            }
+            'v' => {
+                let s = ICFPString::from_str(chars[1..].to_vec())?;
+                let num = s.to_i64();
+                ret.push(TokenType::Variable(num));
             }
             _ => return Err(ParseError::InvalidToken),
         }
@@ -219,6 +226,11 @@ mod tests {
     #[test]
     fn test_example_lambda() {
         run_single_token_test("L/6", TokenType::Lambda(1337));
+    }
+
+    #[test]
+    fn test_example_variable() {
+        run_single_token_test("v/6", TokenType::Variable(1337));
     }
 
     #[test]

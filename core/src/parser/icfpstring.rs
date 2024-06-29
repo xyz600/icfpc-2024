@@ -11,7 +11,7 @@ const START_CH: char = '!';
 
 /// ICFP の中で使われる文字列 ("S..." や "I..." など)の表現
 /// 標準文字列に修正したり、base-94 文字列の数値変換が行いやすいようにする
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ICFPString {
     s: Vec<u8>,
 }
@@ -69,6 +69,22 @@ impl ICFPString {
 
     pub fn iter(&self) -> impl Iterator<Item = &char> {
         self.s.iter().map(|&index| &ARRAY[index as usize])
+    }
+
+    pub fn concat(&self, other: &ICFPString) -> ICFPString {
+        let mut s = self.s.clone();
+        s.extend(other.s.iter());
+        ICFPString { s }
+    }
+
+    pub fn take(&self, n: usize) -> ICFPString {
+        let s = self.s.iter().take(n).copied().collect();
+        ICFPString { s }
+    }
+
+    pub fn drop(&self, n: usize) -> ICFPString {
+        let s = self.s.iter().skip(n).copied().collect();
+        ICFPString { s }
     }
 }
 
