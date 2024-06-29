@@ -2,7 +2,9 @@
 
 set -eux
 
-for i in `seq 1 9`; do
+cargo build --release
+
+for i in `seq 1 21`; do
     encoded_path=dataset/encoded/lambdaman/${i}.txt
     decoded_path=dataset/decoded/lambdaman/${i}.txt
 
