@@ -56,7 +56,8 @@ impl Index<usize> for ICFPString {
     type Output = char;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &ARRAY[index]
+        let char_index = self.s[index] as usize;
+        &ARRAY[char_index]
     }
 }
 
@@ -106,5 +107,42 @@ mod tests_rawstr {
         let input = vec![' '];
         let output = ICFPString::from_str(input);
         assert!(output.is_err());
+    }
+
+    #[test]
+    fn test_example1() {
+        let input = to_vec_char("!");
+        let output = ICFPString::from_str(input).unwrap();
+        let expected = to_vec_char("a");
+        assert_eq!(output[0], expected[0]);
+    }
+
+    #[test]
+    fn test_example2() {
+        let input = to_vec_char("B");
+        let output = ICFPString::from_str(input).unwrap();
+        let expected = to_vec_char("H");
+        assert_eq!(output[0], expected[0]);
+    }
+
+    #[test]
+    fn test_example3() {
+        let input = to_vec_char("!");
+        let output = ICFPString::from_str(input).unwrap();
+        let expected = to_vec_char("a");
+        for (i, &ch) in output.iter().enumerate() {
+            assert_eq!(ch, expected[i]);
+        }
+    }
+
+    #[test]
+    fn test_example() {
+        let input = to_vec_char("B%,,/}Q/2,$_");
+        let output = ICFPString::from_str(input).unwrap();
+        let expected = to_vec_char("Hello World!");
+
+        for (i, &ch) in output.iter().enumerate() {
+            assert_eq!(ch, expected[i]);
+        }
     }
 }
