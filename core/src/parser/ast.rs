@@ -19,12 +19,12 @@ pub enum Node {
 }
 
 impl Node {
-    fn visit(&mut self, f: &mut impl FnMut(&mut Node)) {
-        f(self);
+    fn visit(&self, f: &mut impl FnMut(&Node)) {
+        f(&self);
         match self {
             Node::Boolean(_) | Node::Integer(_) | Node::String(_) | Node::Variable(_) => {}
-            Node::Unary(opcode, child) => child.visit(f),
-            Node::Binary(opcode, child1, child2) => {
+            Node::Unary(_, child) => child.visit(f),
+            Node::Binary(_, child1, child2) => {
                 child1.visit(f);
                 child2.visit(f);
             }
@@ -34,6 +34,24 @@ impl Node {
                 second.visit(f);
             }
             Node::Lambda(_, child) => child.visit(f),
+        }
+    }
+
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut Node)) {
+        f(self);
+        match self {
+            Node::Boolean(_) | Node::Integer(_) | Node::String(_) | Node::Variable(_) => {}
+            Node::Unary(_, child) => child.visit_mut(f),
+            Node::Binary(_, child1, child2) => {
+                child1.visit_mut(f);
+                child2.visit_mut(f);
+            }
+            Node::If(pred, first, second) => {
+                pred.visit_mut(f);
+                first.visit_mut(f);
+                second.visit_mut(f);
+            }
+            Node::Lambda(_, child) => child.visit_mut(f),
         }
     }
 }
@@ -161,8 +179,26 @@ pub fn evaluate(node: Node) -> Result<Node, ParseError> {
                     // NOTE: どのような順序で簡約しても影響がないと仮定している
                     // 1. child2 を eval する
                     // 2. child1 が Lambda だったら、 child1 の中の Variable(i) をみつけて、 child2 に置き換える
+                    // 3. child1 が Lambda でなかったら、 child1 と child2 を評価をしつつ、そのまま返す
 
-                    todo!();
+                    match child1 {
+                        Node::Lambda(i, child) => {
+                            let mut child = *child;
+                            child.visit_mut(&mut |node| {
+                                if let Node::Variable(j) = node {
+                                    if *j == i {
+                                        *node = child2.clone();
+                                    }
+                                }
+                            });
+                            Ok(child)
+                        }
+                        _ => Ok(Node::Binary(
+                            BinaryOpecode::Apply,
+                            Box::new(child1),
+                            Box::new(child2),
+                        )),
+                    }
                 }
             }
         }
@@ -195,6 +231,7 @@ mod tests {
         let token_list = tokenize(input.to_string()).unwrap();
         let mut token_stream = VecDeque::from(token_list);
         let node = parse(&mut token_stream).unwrap();
+        eprintln!("{:?}", node);
         let result = evaluate(node).unwrap();
         assert_eq!(result, expected);
     }
@@ -288,5 +325,10 @@ mod tests {
             "? B> I# I$ S9%3 S./",
             Node::String(ICFPString::from_str("./".chars().collect()).unwrap()),
         );
+    }
+
+    #[test]
+    fn test_lambda_apply() {
+        test_sequence("B$ L# B$ L\" B+ v\" v\" B* I$ I# v8", Node::Integer(12));
     }
 }
