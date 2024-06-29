@@ -37,8 +37,6 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let response_message = client.post_message(message).await?;
-    eprintln!("---");
     eprintln!("{}", response_message);
-    eprintln!("---");
     Ok(())
 }

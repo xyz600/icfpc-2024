@@ -74,6 +74,7 @@ pub fn parse(input: String) -> Result<ast::Node, ParseError> {
     let mut queue = VecDeque::from_iter(token_list);
     let mut id = 0;
     let ast = ast::parse(&mut queue, &mut id)?;
+    // eprintln!("{}", ast.to_dot_string());
     let evaluated_ast = ast::evaluate(ast)?;
     Ok(evaluated_ast)
 }
