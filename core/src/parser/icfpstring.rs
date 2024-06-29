@@ -26,6 +26,18 @@ impl ICFPString {
         ICFPString::from_str(input)
     }
 
+    pub fn from_encoded_str(input: &str) -> Result<ICFPString, ParseError> {
+        let mut s = vec![];
+        for ch in input.chars() {
+            let index = ARRAY
+                .iter()
+                .position(|&c| c == ch)
+                .ok_or(ParseError::InvalidCharacter(ch as i64))?;
+            s.push(index as u8);
+        }
+        Ok(ICFPString { s })
+    }
+
     pub fn from_str(input: Vec<char>) -> Result<ICFPString, ParseError> {
         let mut s = vec![];
         for ch in input.iter() {

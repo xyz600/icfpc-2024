@@ -2,6 +2,7 @@ use clap::Parser;
 use core::parser;
 
 use core::parser::ast::Node;
+use core::parser::icfpstring::ICFPString;
 use std::fs;
 use std::path::PathBuf;
 
@@ -13,30 +14,38 @@ struct Args {
     /// ファイルパス
     #[arg(short, long)]
     file: PathBuf,
+
+    #[arg(short, long)]
+    encode: bool,
+}
+
+fn get_content(path: &PathBuf) -> Result<String, anyhow::Error> {
+    fs::read_to_string(path).map_err(|e| e.into())
 }
 
 fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
-    // ファイルの内容を読み込む
-    match fs::read_to_string(&args.file) {
-        Ok(contents) => {
-            let result_node = parser::parse(contents)?;
-            match result_node {
-                Node::String(_, s) => {
-                    for c in s.iter() {
-                        print!("{}", c);
-                    }
-                    println!();
+    let contents = get_content(&args.file)?;
+
+    if args.encode {
+        let s = ICFPString::from_encoded_str(&contents.as_str())?;
+        let encoded = s.to_string()?.into_iter().collect::<String>();
+        println!("S{}", encoded);
+        Ok(())
+    } else {
+        let result_node = parser::parse(contents)?;
+        match result_node {
+            Node::String(_, s) => {
+                for c in s.iter() {
+                    print!("{}", c);
                 }
-                _ => {
-                    println!("cannot reduce to string: {:?}", result_node);
-                }
+                println!();
+                Ok(())
             }
-            Ok(())
-        }
-        Err(error) => {
-            eprintln!("Error: {}", error);
-            Err(error.into())
+            _ => {
+                println!("cannot reduce to string: {:?}", result_node);
+                Err(anyhow::anyhow!("cannot reduce to string"))
+            }
         }
     }
 }
