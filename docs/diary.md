@@ -123,3 +123,14 @@ submit しようとしたんだけど色々面倒だから、コマンドや cli
 圧縮屋としてめっちゃ楽しそうすぎる。
 
 時間が限られていることを考えると efficiency が明らかに楽しそうなので、とりあえずこっちやるか。
+
+## 13:25
+
+とりあえず、ラムダ式の表か戦略について勉強してみる。
+
+* 最左最左簡約
+    * https://scrapbox.io/mrsekut-p/%E6%9C%80%E5%B7%A6%E6%9C%80%E5%A4%96%E7%B0%A1%E7%B4%84
+    * call by name, the normal order strategy
+* 内部簡約：可簡約項の中で最も中にある可簡約項から簡約する方法．
+    * https://research.nii.ac.jp/~hu/pub/teach/cm08/lambda.pdf
+    

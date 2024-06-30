@@ -43,6 +43,13 @@ enum Commands {
         #[arg(short, long)]
         problem_id: String,
     },
+    EfficiencySubmit {
+        #[arg(short, long)]
+        problem_id: String,
+
+        #[arg(short, long)]
+        filepath: PathBuf,
+    },
     D3,
     D3Get {
         #[arg(short, long)]
@@ -77,6 +84,13 @@ fn select_content(command: Commands) -> Result<String, anyhow::Error> {
         Commands::LanguageTest => Ok("get language_test".to_string()),
         Commands::Efficiency => Ok("get efficiency".to_string()),
         Commands::EfficiencyGet { problem_id } => Ok(format!("get efficiency{}", problem_id)),
+        Commands::EfficiencySubmit {
+            problem_id,
+            filepath,
+        } => {
+            let contents = read_content(&filepath)?;
+            Ok(format!("solve efficiency{} {}", problem_id, contents))
+        }
         Commands::D3 => Ok("get 3d".to_string()),
         Commands::D3Get { problem_id } => Ok(format!("get 3d{}", problem_id)),
         Commands::Lambdaman => Ok("get lambdaman".to_string()),
