@@ -262,29 +262,24 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
 }
 
 // apply をするために variable(var_id) を node で置換する
-pub fn substitute(root: &mut Node, var_id: u32, node: &Node, parser_state: &mut ParserState) {
-    fn substitute_inner(
-        target: &mut Node,
-        var_id: u32,
-        visited: &mut HashSet<u32>,
-        node_factory: &mut NodeFactory,
-    ) {
+pub fn substitute(root: &mut Node, var_id: u32, node: Node, parser_state: &mut ParserState) {
+    fn substitute_inner(target: &mut Node, var_id: u32, node_factory: &mut NodeFactory) {
         match target {
             Node::Boolean(_, _) | Node::Integer(_, _) | Node::String(_, _) => {}
-            Node::Unary(_, _, child) => substitute_inner(child, var_id, visited, node_factory),
+            Node::Unary(_, _, child) => substitute_inner(child, var_id, node_factory),
             Node::Binary(_, _, child1, child2) => {
-                substitute_inner(child1, var_id, visited, node_factory);
-                substitute_inner(child2, var_id, visited, node_factory);
+                substitute_inner(child1, var_id, node_factory);
+                substitute_inner(child2, var_id, node_factory);
             }
             Node::If(_, pred, first, second) => {
-                substitute_inner(pred, var_id, visited, node_factory);
-                substitute_inner(first, var_id, visited, node_factory);
-                substitute_inner(second, var_id, visited, node_factory);
+                substitute_inner(pred, var_id, node_factory);
+                substitute_inner(first, var_id, node_factory);
+                substitute_inner(second, var_id, node_factory);
             }
             Node::Lambda(_, ch_var_id, child) => {
                 // 同名の束縛変数がある場合は置換しない
                 if var_id != *ch_var_id {
-                    substitute_inner(child, var_id, visited, node_factory);
+                    substitute_inner(child, var_id, node_factory);
                 }
             }
             Node::Variable(_, ch_var_id) => {
@@ -293,20 +288,16 @@ pub fn substitute(root: &mut Node, var_id: u32, node: &Node, parser_state: &mut 
                     *target = node_factory.lazy_node(var_id);
                 }
             }
-            Node::Lazy(_, var_id) => {
-                // キャッシュの中にある自由変数を置き換える必要がある可能性もあるので、必要に応じて高々一度だけ探索する
-                visited.insert(*var_id);
-            }
+            Node::Lazy(_, var_id) => {}
         }
     }
 
-    let mut visited = HashSet::new();
     // FIXME: clone 消せる？
-    parser_state.cache_table.insert(var_id, node.clone());
-    substitute_inner(root, var_id, &mut visited, &mut parser_state.node_factory);
+    parser_state.cache_table.insert(var_id, node);
+    substitute_inner(root, var_id, &mut parser_state.node_factory);
 
     for (var_id, node) in parser_state.cache_table.iter_mut() {
-        substitute_inner(node, *var_id, &mut visited, &mut parser_state.node_factory);
+        substitute_inner(node, *var_id, &mut parser_state.node_factory);
     }
 }
 
@@ -489,7 +480,7 @@ pub fn evaluate_once(parser_state: &mut ParserState, node: Node) -> Result<Node,
                 BinaryOpecode::Apply => match child1 {
                     Node::Lambda(_, var_id, child) => {
                         let mut child = *child;
-                        substitute(&mut child, var_id, &child2, parser_state);
+                        substitute(&mut child, var_id, child2, parser_state);
                         Ok(child)
                     }
                     _ => Ok(parser_state.node_factory.binary_node(
