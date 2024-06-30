@@ -6,10 +6,8 @@ pushd ../../../
 
 cargo build --release
 
-for i in `seq 1 20`; do
-    input_path=dataset/decoded/lambdaman/${i}.txt
-    output_path=dataset/solution/lambdaman/${i}.txt
-    ./target/release/lambdaman-solver < ${input_path} > ${output_path} 
-done
+cp target/release/lambdaman-solver ./l-solver
+
+parallel --result result-lambdaman --progress -j 12 "./l-solver < ./dataset/decoded/lambdaman/{}.txt" ::: `seq 9 20`
 
 popd
