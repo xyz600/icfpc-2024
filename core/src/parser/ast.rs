@@ -120,13 +120,6 @@ impl NodeFactory {
             .push(Node::new(new_node_id, NodeType::Variable(var_id)));
         self.node_buffer.len() - 1
     }
-
-    fn lazy_node(&mut self, var_id: u32) -> usize {
-        let new_node_id = self.get_node_id();
-        self.node_buffer
-            .push(Node::new(new_node_id, NodeType::Lazy(var_id)));
-        self.node_buffer.len() - 1
-    }
 }
 
 impl Index<usize> for NodeFactory {
@@ -166,6 +159,8 @@ pub fn alpha_convert(node_id: usize, parser_state: &mut ParserState, visited: &m
             // var_id を new_id に変更するための visited
             let mut local_visited = HashSet::new();
             replace_var_id(child, var_id, new_var_id, parser_state, &mut local_visited);
+            parser_state.node_factory[node_id].node_type = NodeType::Lambda(new_var_id, child);
+
             alpha_convert(child, parser_state, visited);
         }
         NodeType::Lazy(var_id) => {
@@ -258,6 +253,57 @@ fn construct_node(
     }
 }
 
+pub fn print_node(parsre_state: &ParserState) {
+    fn print_node_inner(parsre_state: &ParserState, node_id: usize, depth: usize) {
+        let node = &parsre_state.node_factory[node_id];
+        let indent = "    ".repeat(depth);
+        match node.node_type.clone() {
+            NodeType::Boolean(b) => {
+                println!("{}Boolean({})", indent, b);
+            }
+            NodeType::Integer(i) => {
+                println!("{}Integer({})", indent, i);
+            }
+            NodeType::String(s) => {
+                println!("{}String({})", indent, s);
+            }
+            NodeType::Unary(opcode, child) => {
+                println!("{}Unary({:?})", indent, opcode);
+                print_node_inner(parsre_state, child, depth + 1);
+            }
+            NodeType::Binary(opcode, child1, child2) => {
+                println!("{}Binary({:?})", indent, opcode);
+                print_node_inner(parsre_state, child1, depth + 1);
+                print_node_inner(parsre_state, child2, depth + 1);
+            }
+            NodeType::If(pred, first, second) => {
+                println!("{}If", indent);
+                print_node_inner(parsre_state, pred, depth + 1);
+                print_node_inner(parsre_state, first, depth + 1);
+                print_node_inner(parsre_state, second, depth + 1);
+            }
+            NodeType::Lambda(var_id, child) => {
+                println!("{}Lambda({})", indent, var_id);
+                print_node_inner(parsre_state, child, depth + 1);
+            }
+            NodeType::Variable(var_id) => {
+                println!("{}Variable({})", indent, var_id);
+            }
+            NodeType::Lazy(var_id) => {
+                println!("{}Lazy({})", indent, var_id);
+            }
+        }
+    }
+    print_node_inner(parsre_state, parsre_state.node_factory.root_id, 0);
+    println!();
+    println!("cache: ");
+    for (k, v) in parsre_state.lazy_table.iter() {
+        println!("key: {}", *k);
+        print_node_inner(parsre_state, *v, 1);
+    }
+    println!("-----");
+}
+
 pub fn parse(input: String) -> Result<Node, ParseError> {
     let mut parser_state = ParserState::new();
     let token_list = tokenizer::tokenize(input)?;
@@ -271,11 +317,15 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
         &mut parser_state,
         &mut visited,
     );
+    print_node(&parser_state);
 
-    for _iter in 0..10_000_000 {
+    for iter in 0..14 {
+        println!("iter: {}", iter);
+        // for _iter in 0..10_000_000 {
         let mut updated = false;
         let root_id = parser_state.node_factory.root_id;
         evaluate_once(&mut parser_state, root_id, &mut updated);
+        print_node(&parser_state);
 
         if !updated {
             break;
@@ -498,13 +548,34 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
                         parser_state.node_factory[node_id].node_type =
                             parser_state.node_factory[child1_inner].node_type.clone();
                     }
+                    NodeType::Lazy(var_id) => {
+                        // lazy の中身がある場合は、そこも見る
+                        let lazy_node_id = *parser_state.lazy_table.get(&var_id).unwrap();
+                        let lazy_node_type =
+                            parser_state.node_factory[lazy_node_id].node_type.clone();
+                        match lazy_node_type {
+                            NodeType::Lambda(lazy_var_id, lazy_child1_inner) => {
+                                *updated = true;
+                                substitute(lazy_child1_inner, lazy_var_id, child2, parser_state);
+                                parser_state.node_factory[lazy_node_id].node_type = parser_state
+                                    .node_factory[lazy_child1_inner]
+                                    .node_type
+                                    .clone();
+                                // Apply の第1項が lambda の時、lambda の中身を substitute して更新するだけではなく、
+                                // Apply を適用した結果 lazy で上書きする必要がある
+                                parser_state.node_factory[node_id].node_type =
+                                    NodeType::Lazy(var_id);
+                            }
+                            _ => {}
+                        }
+                    }
                     _ => {}
                 },
             }
             if !*updated {
-                evaluate_once(parser_state, child1, updated);
+                evaluate_once(parser_state, child2, updated);
                 if !*updated {
-                    evaluate_once(parser_state, child2, updated);
+                    evaluate_once(parser_state, child1, updated);
                 }
             }
         }
@@ -532,12 +603,35 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
                 }
             }
         },
-        NodeType::Lambda(i, child) => {
-            evaluate_once(parser_state, child, updated);
+        NodeType::Lambda(var_id, child) => {
+            if !*updated {
+                evaluate_once(parser_state, child, updated);
+            }
         }
         NodeType::Lazy(var_id) => {
             if let Some(lazy_node) = parser_state.lazy_table.get(&var_id) {
-                evaluate_once(parser_state, *lazy_node, updated);
+                let lazy_node = *lazy_node;
+                // プリミティブ型に縮約された場合は、Lazy ノードを置換する
+                match parser_state.node_factory[lazy_node].node_type {
+                    NodeType::Boolean(_)
+                    | NodeType::Integer(_)
+                    | NodeType::String(_)
+                    | NodeType::Variable(_) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type =
+                            parser_state.node_factory[lazy_node].node_type.clone();
+                    }
+                    NodeType::Lazy(next_var_id) => {
+                        // Lazy(x) -> Lazy(y) -> N のように Lazy 続きの場合は、 Lazy (x) -> N に縮約する
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Lazy(next_var_id);
+                    }
+                    _ => {
+                        if !*updated {
+                            evaluate_once(parser_state, lazy_node, updated);
+                        }
+                    }
+                }
             } else {
                 unreachable!("Lazy node should be replaced by its value")
             }
@@ -697,4 +791,3 @@ mod tests {
                 )
     }
 }
- 
