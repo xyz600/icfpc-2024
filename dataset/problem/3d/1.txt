@@ -1,4 +1,4 @@
-# Input
+b# Input
   `1 <= A <= 100`
 
 # Output

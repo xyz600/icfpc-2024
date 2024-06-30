@@ -32,6 +32,13 @@ enum Commands {
         #[arg(short, long)]
         problem_id: String,
     },
+    SpaceshipSubmit {
+        #[arg(short, long)]
+        problem_id: String,
+
+        #[arg(short, long)]
+        filepath: PathBuf,
+    },
     Echo {
         #[arg(short, long)]
         message: String,
@@ -51,9 +58,17 @@ enum Commands {
         filepath: PathBuf,
     },
     D3,
+    D3Example,
     D3Get {
         #[arg(short, long)]
         problem_id: String,
+    },
+    D3Submit {
+        #[arg(short, long)]
+        problem_id: String,
+
+        #[arg(short, long)]
+        filepath: PathBuf,
     },
 }
 
@@ -79,6 +94,13 @@ fn select_content(command: Commands) -> Result<String, anyhow::Error> {
     match command {
         Commands::Spaceship => Ok("get spaceship".to_string()),
         Commands::SpaceshipGet { problem_id } => Ok(format!("get spaceship{}", problem_id)),
+        Commands::SpaceshipSubmit {
+            problem_id,
+            filepath,
+        } => {
+            let contents = read_content(&filepath)?;
+            Ok(format!("solve spaceship{} {}", problem_id, contents))
+        }
         Commands::Echo { message } => Ok(format!("get echo {}", message)),
         Commands::Scoreboard => Ok("get scoreboard".to_string()),
         Commands::LanguageTest => Ok("get language_test".to_string()),
@@ -92,7 +114,15 @@ fn select_content(command: Commands) -> Result<String, anyhow::Error> {
             Ok(format!("solve efficiency{} {}", problem_id, contents))
         }
         Commands::D3 => Ok("get 3d".to_string()),
+        Commands::D3Example => Ok("get 3d-example".to_string()),
         Commands::D3Get { problem_id } => Ok(format!("get 3d{}", problem_id)),
+        Commands::D3Submit {
+            problem_id,
+            filepath,
+        } => {
+            let contents = read_content(&filepath)?;
+            Ok(format!("solve 3d{}\n {}", problem_id, contents))
+        }
         Commands::Lambdaman => Ok("get lambdaman".to_string()),
         Commands::LambdamanGet { problem_id } => Ok(format!("get lambdaman{}", problem_id)),
         Commands::LambdamanSubmit {
