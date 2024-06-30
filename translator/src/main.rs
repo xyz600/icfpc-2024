@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use core::parser::ast::{parse, Node, ParserState};
+use core::parser::ast::{parse, Node};
 use core::parser::icfpstring::ICFPString;
 use std::fs;
 use std::path::PathBuf;

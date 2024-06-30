@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use super::{
     icfpstring::ICFPString,
@@ -45,35 +45,7 @@ impl PartialEq for Node {
     }
 }
 
-impl Node {
-    fn id(&self) -> u32 {
-        match self {
-            Node::Boolean(id, _)
-            | Node::Integer(id, _)
-            | Node::String(id, _)
-            | Node::Unary(id, _, _)
-            | Node::Binary(id, _, _, _)
-            | Node::If(id, _, _, _)
-            | Node::Lambda(id, _, _)
-            | Node::Variable(id, _)
-            | Node::Lazy(id, _) => *id,
-        }
-    }
-
-    fn id_mut(&mut self) -> &mut u32 {
-        match self {
-            Node::Boolean(id, _)
-            | Node::Integer(id, _)
-            | Node::String(id, _)
-            | Node::Unary(id, _, _)
-            | Node::Binary(id, _, _, _)
-            | Node::If(id, _, _, _)
-            | Node::Lambda(id, _, _)
-            | Node::Variable(id, _)
-            | Node::Lazy(id, _) => id,
-        }
-    }
-}
+impl Node {}
 
 pub struct NodeFactory {
     node_id: u32,
@@ -288,7 +260,7 @@ pub fn substitute(root: &mut Node, var_id: u32, node: Node, parser_state: &mut P
                     *target = node_factory.lazy_node(var_id);
                 }
             }
-            Node::Lazy(_, var_id) => {}
+            Node::Lazy(_, _) => {}
         }
     }
 
