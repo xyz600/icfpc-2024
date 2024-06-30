@@ -28,6 +28,10 @@ enum Commands {
         filepath: PathBuf,
     },
     Spaceship,
+    SpaceshipGet {
+        #[arg(short, long)]
+        problem_id: String,
+    },
     Echo {
         #[arg(short, long)]
         message: String,
@@ -35,7 +39,15 @@ enum Commands {
     Scoreboard,
     LanguageTest,
     Efficiency,
+    EfficiencyGet {
+        #[arg(short, long)]
+        problem_id: String,
+    },
     D3,
+    D3Get {
+        #[arg(short, long)]
+        problem_id: String,
+    },
 }
 
 fn read_content(path: &PathBuf) -> Result<String, anyhow::Error> {
@@ -58,13 +70,16 @@ fn decode(contents: String) -> Result<String, anyhow::Error> {
 
 fn select_content(command: Commands) -> Result<String, anyhow::Error> {
     match command {
-        Commands::Lambdaman => Ok("get lambdaman".to_string()),
         Commands::Spaceship => Ok("get spaceship".to_string()),
+        Commands::SpaceshipGet { problem_id } => Ok(format!("get spaceship {}", problem_id)),
         Commands::Echo { message } => Ok(format!("get echo {}", message)),
         Commands::Scoreboard => Ok("get scoreboard".to_string()),
         Commands::LanguageTest => Ok("get language_test".to_string()),
         Commands::Efficiency => Ok("get efficiency".to_string()),
+        Commands::EfficiencyGet { problem_id } => Ok(format!("get efficiency {}", problem_id)),
         Commands::D3 => Ok("get 3d".to_string()),
+        Commands::D3Get { problem_id } => Ok(format!("get 3d {}", problem_id)),
+        Commands::Lambdaman => Ok("get lambdaman".to_string()),
         Commands::LambdamanGet { problem_id } => Ok(format!("get lambdaman {}", problem_id)),
         Commands::LambdamanSubmit {
             problem_id,
