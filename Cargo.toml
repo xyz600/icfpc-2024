@@ -1,7 +1,7 @@
 [workspace]
 
 members = [ 
-    "core", 
+    "core", "efficiency-solver", 
     "lambdaman-solver", 
     "macro-util",
     "message-sender", 

@@ -2,9 +2,7 @@ pub mod ast;
 pub mod icfpstring;
 pub mod tokenizer;
 
-use std::{collections::VecDeque, fmt::Display};
-
-use ast::NodeFactory;
+use std::fmt::Display;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ParseError {
@@ -23,13 +21,4 @@ impl Display for ParseError {
             ParseError::CannotConsumeToken => write!(f, "cannot consume all token"),
         }
     }
-}
-
-pub fn parse(input: String) -> Result<ast::Node, ParseError> {
-    let token_list = tokenizer::tokenize(input)?;
-    let mut queue = VecDeque::from_iter(token_list);
-    let mut node_factory = NodeFactory::new();
-    let ast = ast::parse(&mut queue, &mut node_factory)?;
-    let evaluated_ast = ast::evaluate(ast, &mut node_factory)?;
-    Ok(evaluated_ast)
 }
