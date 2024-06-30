@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use core::parser::ast::Node;
+use core::parser::ast::{parse, Node};
 use core::{client::ICFPCClient, parser::icfpstring::ICFPString};
 use std::fs;
 use std::path::PathBuf;
@@ -68,7 +68,7 @@ fn encode(contents: String) -> Result<String, anyhow::Error> {
 }
 
 fn decode(contents: String) -> Result<String, anyhow::Error> {
-    let decoded_message = core::parser::parse(contents)?;
+    let decoded_message = parse(contents)?;
     match decoded_message {
         Node::String(_, s) => Ok(s.iter().collect::<String>()),
         _ => Err(anyhow::anyhow!("Invalid message")),

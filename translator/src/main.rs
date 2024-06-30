@@ -1,7 +1,6 @@
 use clap::Parser;
-use core::parser;
 
-use core::parser::ast::Node;
+use core::parser::ast::{parse, Node, ParserState};
 use core::parser::icfpstring::ICFPString;
 use std::fs;
 use std::path::PathBuf;
@@ -33,7 +32,7 @@ fn main() -> Result<(), anyhow::Error> {
         println!("S{}", encoded);
         Ok(())
     } else {
-        let result_node = parser::parse(contents)?;
+        let result_node = parse(contents)?;
         match result_node {
             Node::String(_, s) => {
                 for c in s.iter() {

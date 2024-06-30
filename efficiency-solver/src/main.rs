@@ -1,7 +1,5 @@
 use clap::Parser;
-use core::parser::ast::{self, Node, NodeFactory};
-use core::parser::tokenizer;
-use std::collections::VecDeque;
+use core::parser::ast::parse;
 use std::fs;
 use std::path::PathBuf;
 
@@ -22,22 +20,9 @@ fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
 
     let contents = read_content(&args.filepath)?;
+    let node = parse(contents)?;
 
-    let token_list = tokenizer::tokenize(contents)?;
-    let mut queue = VecDeque::from_iter(token_list);
-    let mut node_factory = NodeFactory::new();
-    let mut node = ast::parse(&mut queue, &mut node_factory)?;
-    println!("{}", node.to_dot_string());
-
-    for iter in 0..10_000_000 {
-        let new_node = ast::evaluate_once(node.clone(), &mut node_factory)?;
-        if new_node == node {
-            break;
-        }
-        node = new_node;
-
-        eprintln!("iter = {}, node_size: {}", iter, node.len());
-    }
+    println!("{:?}", node);
 
     Ok(())
 }
