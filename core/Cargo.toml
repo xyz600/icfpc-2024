@@ -10,3 +10,6 @@ reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 thiserror = "*"
 macro-util = { path = "../macro-util" }
+proconio = "0.4.5"
+rayon = "1.10"
+rand = "0.8.5"
