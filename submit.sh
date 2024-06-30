@@ -2,7 +2,9 @@
 
 set -eux
 
-for i in `seq 1 20`; do
-    ./target/release/message-sender lambdaman-submit --problem-id ${i} --filepath ./dataset/solution/lambdaman/${i}.txt
+cargo build --release
+
+for i in `seq 1 13`; do
+    ./target/release/message-sender efficiency-get --problem-id ${i} > dataset/problem/efficiency/${i}.txt
     sleep 5
 done
