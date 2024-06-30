@@ -1,4 +1,7 @@
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    ops::{Index, IndexMut},
+};
 
 use super::{
     icfpstring::ICFPString,
@@ -6,61 +9,49 @@ use super::{
     ParseError,
 };
 
-#[derive(Clone, Debug)]
-pub enum Node {
-    Boolean(u32, bool),
-    Integer(u32, i64),
-    String(u32, ICFPString),
-    Unary(u32, UnaryOpecode, Box<Node>),
-    Binary(u32, BinaryOpecode, Box<Node>, Box<Node>),
-    If(u32, Box<Node>, Box<Node>, Box<Node>),
-    Lambda(u32, u32, Box<Node>),
-    Variable(u32, u32),
-    Lazy(u32, u32),
+#[derive(Clone, Debug, PartialEq)]
+pub enum NodeType {
+    Boolean(bool),
+    Integer(i64),
+    String(ICFPString),
+    Unary(UnaryOpecode, usize),
+    Binary(BinaryOpecode, usize, usize),
+    If(usize, usize, usize),
+    Lambda(u32, usize),
+    Variable(u32),
+    Lazy(u32),
 }
 
-impl PartialEq for Node {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Node::Boolean(_, b1), Node::Boolean(_, b2)) => b1 == b2,
-            (Node::Integer(_, i1), Node::Integer(_, i2)) => i1 == i2,
-            (Node::String(_, s1), Node::String(_, s2)) => s1 == s2,
-            (Node::Unary(_, opcode1, child1), Node::Unary(_, opcode2, child2)) => {
-                opcode1 == opcode2 && child1 == child2
-            }
-            (
-                Node::Binary(_, opcode1, child11, child12),
-                Node::Binary(_, opcode2, child21, child22),
-            ) => opcode1 == opcode2 && child11 == child21 && child12 == child22,
-            (Node::If(_, pred1, first1, second1), Node::If(_, pred2, first2, second2)) => {
-                pred1 == pred2 && first1 == first2 && second1 == second2
-            }
-            (Node::Lambda(_, i1, child1), Node::Lambda(_, i2, child2)) => {
-                i1 == i2 && child1 == child2
-            }
-            (Node::Variable(_, i1), Node::Variable(_, i2)) => i1 == i2,
-            (Node::Lazy(_, i1), Node::Lazy(_, i2)) => i1 == i2,
-            _ => false,
-        }
+#[derive(Clone, Debug)]
+pub struct Node {
+    pub node_id: usize,
+    pub node_type: NodeType,
+}
+
+impl Node {
+    pub fn new(node_id: usize, node_type: NodeType) -> Node {
+        Node { node_id, node_type }
     }
 }
 
-impl Node {}
-
 pub struct NodeFactory {
-    node_id: u32,
+    node_id: usize,
     var_id: u32,
+    node_buffer: Vec<Node>,
+    root_id: usize,
 }
 
 impl NodeFactory {
     pub fn new() -> NodeFactory {
         NodeFactory {
-            node_id: 10,
-            var_id: 10,
+            node_id: 0,
+            var_id: 128,
+            node_buffer: Vec::new(),
+            root_id: 0,
         }
     }
 
-    fn get_node_id(&mut self) -> u32 {
+    fn get_node_id(&mut self) -> usize {
         let ret = self.node_id;
         self.node_id += 1;
         ret
@@ -72,113 +63,157 @@ impl NodeFactory {
         ret
     }
 
-    fn boolean_node(&mut self, b: bool) -> Node {
-        Node::Boolean(self.get_node_id(), b)
+    fn boolean_node(&mut self, b: bool) -> usize {
+        let new_node_id = self.get_node_id();
+        self.node_buffer
+            .push(Node::new(new_node_id, NodeType::Boolean(b)));
+        self.node_buffer.len() - 1
     }
 
-    fn integer_node(&mut self, i: i64) -> Node {
-        Node::Integer(self.get_node_id(), i)
+    fn integer_node(&mut self, i: i64) -> usize {
+        let new_node_id = self.get_node_id();
+        self.node_buffer
+            .push(Node::new(new_node_id, NodeType::Integer(i)));
+        self.node_buffer.len() - 1
     }
 
-    fn string_node(&mut self, s: ICFPString) -> Node {
-        Node::String(self.get_node_id(), s)
+    fn string_node(&mut self, s: ICFPString) -> usize {
+        let new_node_id = self.get_node_id();
+        self.node_buffer
+            .push(Node::new(new_node_id, NodeType::String(s)));
+        self.node_buffer.len() - 1
     }
 
-    fn unary_node(&mut self, opcode: UnaryOpecode, child: Node) -> Node {
-        Node::Unary(self.get_node_id(), opcode, Box::new(child))
+    fn unary_node(&mut self, opcode: UnaryOpecode, child_id: usize) -> usize {
+        let new_node_id = self.get_node_id();
+        self.node_buffer
+            .push(Node::new(new_node_id, NodeType::Unary(opcode, child_id)));
+        self.node_buffer.len() - 1
     }
 
-    fn binary_node(&mut self, opcode: BinaryOpecode, child1: Node, child2: Node) -> Node {
-        Node::Binary(
-            self.get_node_id(),
-            opcode,
-            Box::new(child1),
-            Box::new(child2),
-        )
+    fn binary_node(&mut self, opcode: BinaryOpecode, child_id1: usize, child_id2: usize) -> usize {
+        let new_node_id = self.get_node_id();
+        self.node_buffer.push(Node::new(
+            new_node_id,
+            NodeType::Binary(opcode, child_id1, child_id2),
+        ));
+        self.node_buffer.len() - 1
     }
 
-    fn if_node(&mut self, pred: Node, first: Node, second: Node) -> Node {
-        Node::If(
-            self.get_node_id(),
-            Box::new(pred),
-            Box::new(first),
-            Box::new(second),
-        )
+    fn if_node(&mut self, pred: usize, first: usize, second: usize) -> usize {
+        let new_node_id = self.get_node_id();
+        self.node_buffer
+            .push(Node::new(new_node_id, NodeType::If(pred, first, second)));
+        self.node_buffer.len() - 1
     }
 
-    fn lambda_node(&mut self, var_id: u32, expr: Node) -> Node {
-        Node::Lambda(self.get_node_id(), var_id, Box::new(expr))
+    fn lambda_node(&mut self, var_id: u32, expr: usize) -> usize {
+        let new_node_id = self.get_node_id();
+        self.node_buffer
+            .push(Node::new(new_node_id, NodeType::Lambda(var_id, expr)));
+        self.node_buffer.len() - 1
     }
 
-    fn variable_node(&mut self, var_id: u32) -> Node {
-        Node::Variable(self.get_node_id(), var_id)
+    fn variable_node(&mut self, var_id: u32) -> usize {
+        let new_node_id = self.get_node_id();
+        self.node_buffer
+            .push(Node::new(new_node_id, NodeType::Variable(var_id)));
+        self.node_buffer.len() - 1
     }
 
-    fn lazy_node(&mut self, var_id: u32) -> Node {
-        Node::Lazy(self.get_node_id(), var_id)
+    fn lazy_node(&mut self, var_id: u32) -> usize {
+        let new_node_id = self.get_node_id();
+        self.node_buffer
+            .push(Node::new(new_node_id, NodeType::Lazy(var_id)));
+        self.node_buffer.len() - 1
+    }
+}
+
+impl Index<usize> for NodeFactory {
+    type Output = Node;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.node_buffer[index]
+    }
+}
+
+impl IndexMut<usize> for NodeFactory {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.node_buffer[index]
     }
 }
 
 // node 以下の変数名を unique に変更する
 // 最初に呼ばれるだけのやつなので、lazy は含まれないと思ってよい。
-pub fn alpha_convert(node: &mut Node, parser_state: &mut ParserState) {
-    match node {
-        Node::Boolean(_, _) | Node::Integer(_, _) | Node::String(_, _) | Node::Variable(_, _) => {}
-        Node::Unary(_, _, child) => alpha_convert(child, parser_state),
-        Node::Binary(_, _, child1, child2) => {
-            alpha_convert(child1, parser_state);
-            alpha_convert(child2, parser_state);
+pub fn alpha_convert(node_id: usize, parser_state: &mut ParserState, visited: &mut HashSet<u32>) {
+    match parser_state.node_factory[node_id].node_type {
+        NodeType::Boolean(_)
+        | NodeType::Integer(_)
+        | NodeType::String(_)
+        | NodeType::Variable(_) => {}
+        NodeType::Unary(_, child) => alpha_convert(child, parser_state, visited),
+        NodeType::Binary(_, child1, child2) => {
+            alpha_convert(child1, parser_state, visited);
+            alpha_convert(child2, parser_state, visited);
         }
-        Node::If(_, pred, first, second) => {
-            alpha_convert(pred, parser_state);
-            alpha_convert(first, parser_state);
-            alpha_convert(second, parser_state)
+        NodeType::If(pred, first, second) => {
+            alpha_convert(pred, parser_state, visited);
+            alpha_convert(first, parser_state, visited);
+            alpha_convert(second, parser_state, visited);
         }
-        Node::Lambda(_, var_id, child) => {
+        NodeType::Lambda(var_id, child) => {
             let new_var_id = parser_state.node_factory.get_var_id();
-            // FIXME: 高速化
-            replace_var_id_state(parser_state, var_id, new_var_id);
-            replace_var_id(child, var_id, new_var_id);
-            alpha_convert(child, parser_state);
+            // var_id を new_id に変更するための visited
+            let mut local_visited = HashSet::new();
+            replace_var_id(child, var_id, new_var_id, parser_state, &mut local_visited);
+            alpha_convert(child, parser_state, visited);
         }
-        Node::Lazy(_, _) => {
-            unreachable!("Lazy should not be appeared");
+        NodeType::Lazy(var_id) => {
+            if !visited.contains(&var_id) {
+                visited.insert(var_id);
+                let lazy_node_id = *parser_state.lazy_table.get(&var_id).unwrap();
+                alpha_convert(lazy_node_id, parser_state, visited);
+            }
         }
     }
 }
 
-fn replace_var_id_state(parser_state: &mut ParserState, from: &u32, to: u32) {
-    for (_, node) in parser_state.cache_table.iter_mut() {
-        replace_var_id(node, from, to);
-    }
-}
-
-fn replace_var_id(node: &mut Node, from: &u32, to: u32) {
-    match node {
-        Node::Boolean(_, _) | Node::Integer(_, _) | Node::String(_, _) => {}
-        Node::Unary(_, _, child) => replace_var_id(child, from, to),
-        Node::Binary(_, _, child1, child2) => {
-            replace_var_id(child1, from, to);
-            replace_var_id(child2, from, to);
+fn replace_var_id(
+    node_id: usize,
+    from: u32,
+    to: u32,
+    parser_state: &mut ParserState,
+    visited: &mut HashSet<u32>,
+) {
+    match parser_state.node_factory[node_id].node_type {
+        NodeType::Boolean(_) | NodeType::Integer(_) | NodeType::String(_) => {}
+        NodeType::Unary(_, child) => replace_var_id(child, from, to, parser_state, visited),
+        NodeType::Binary(_, child1, child2) => {
+            replace_var_id(child1, from, to, parser_state, visited);
+            replace_var_id(child2, from, to, parser_state, visited);
         }
-        Node::If(_, pred, first, second) => {
-            replace_var_id(pred, from, to);
-            replace_var_id(first, from, to);
-            replace_var_id(second, from, to);
+        NodeType::If(pred, first, second) => {
+            replace_var_id(pred, from, to, parser_state, visited);
+            replace_var_id(first, from, to, parser_state, visited);
+            replace_var_id(second, from, to, parser_state, visited);
         }
-        Node::Lambda(_, var_id, child) => {
-            if var_id == from {
-                *var_id = to;
-            }
-            replace_var_id(child, from, to);
-        }
-        Node::Variable(_, var_id) => {
-            if var_id == from {
-                *var_id = to;
+        // Lambda の場合は、束縛変数と同じ名前の変数がある場合は置換しない
+        NodeType::Lambda(var_id, child) => {
+            if var_id != from {
+                replace_var_id(child, from, to, parser_state, visited);
             }
         }
-        Node::Lazy(_, _) => {
-            unreachable!("Lazy should not be appeared");
+        NodeType::Variable(var_id) => {
+            if var_id == from {
+                parser_state.node_factory[node_id].node_type = NodeType::Variable(to);
+            }
+        }
+        NodeType::Lazy(var_id) => {
+            if !visited.contains(&var_id) {
+                visited.insert(var_id);
+                let cache_id = *parser_state.lazy_table.get(&var_id).unwrap();
+                replace_var_id(cache_id, from, to, parser_state, visited);
+            }
         }
     }
 }
@@ -186,7 +221,7 @@ fn replace_var_id(node: &mut Node, from: &u32, to: u32) {
 fn construct_node(
     parser_state: &mut ParserState,
     token_stream: &mut VecDeque<TokenType>,
-) -> Result<Node, ParseError> {
+) -> Result<usize, ParseError> {
     if let Some(token) = token_stream.pop_front() {
         let node = match token {
             TokenType::Boolean(b) => parser_state.node_factory.boolean_node(b),
@@ -227,262 +262,282 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
     let mut parser_state = ParserState::new();
     let token_list = tokenizer::tokenize(input)?;
     let mut queue = VecDeque::from_iter(token_list);
-    let mut ast = construct_node(&mut parser_state, &mut queue)?;
-    alpha_convert(&mut ast, &mut parser_state);
-    let ast = evaluate_once(&mut parser_state, ast)?;
-    Ok(ast)
+    let root_node_id = construct_node(&mut parser_state, &mut queue)?;
+    parser_state.node_factory.root_id = root_node_id;
+
+    let mut visited = HashSet::new();
+    alpha_convert(
+        parser_state.node_factory.root_id,
+        &mut parser_state,
+        &mut visited,
+    );
+
+    for _iter in 0..10_000_000 {
+        let mut updated = false;
+        let root_id = parser_state.node_factory.root_id;
+        evaluate_once(&mut parser_state, root_id, &mut updated);
+
+        if !updated {
+            break;
+        }
+    }
+    let result = parser_state.node_factory[parser_state.node_factory.root_id].clone();
+    Ok(result)
 }
 
 // apply をするために variable(var_id) を node で置換する
-pub fn substitute(root: &mut Node, var_id: u32, node: Node, parser_state: &mut ParserState) {
-    fn substitute_inner(target: &mut Node, var_id: u32, node_factory: &mut NodeFactory) {
-        match target {
-            Node::Boolean(_, _) | Node::Integer(_, _) | Node::String(_, _) => {}
-            Node::Unary(_, _, child) => substitute_inner(child, var_id, node_factory),
-            Node::Binary(_, _, child1, child2) => {
-                substitute_inner(child1, var_id, node_factory);
-                substitute_inner(child2, var_id, node_factory);
+pub fn substitute(
+    root_node_id: usize,
+    var_id: u32,
+    node_id: usize,
+    parser_state: &mut ParserState,
+) {
+    // Variable(X) を Lazy(X) で置換する
+    fn substitute_inner(
+        node_id: usize,
+        var_id: u32,
+        parser_state: &mut ParserState,
+        visited: &mut HashSet<usize>,
+    ) {
+        let nt = parser_state.node_factory[node_id].node_type.clone();
+        match nt {
+            NodeType::Boolean(_) | NodeType::Integer(_) | NodeType::String(_) => {}
+            NodeType::Unary(_, child) => substitute_inner(child, var_id, parser_state, visited),
+            NodeType::Binary(_, child1, child2) => {
+                substitute_inner(child1, var_id, parser_state, visited);
+                substitute_inner(child2, var_id, parser_state, visited);
             }
-            Node::If(_, pred, first, second) => {
-                substitute_inner(pred, var_id, node_factory);
-                substitute_inner(first, var_id, node_factory);
-                substitute_inner(second, var_id, node_factory);
+            NodeType::If(pred, first, second) => {
+                substitute_inner(pred, var_id, parser_state, visited);
+                substitute_inner(first, var_id, parser_state, visited);
+                substitute_inner(second, var_id, parser_state, visited);
             }
-            Node::Lambda(_, ch_var_id, child) => {
+            NodeType::Lambda(child_var_id, child) => {
                 // 同名の束縛変数がある場合は置換しない
-                if var_id != *ch_var_id {
-                    substitute_inner(child, var_id, node_factory);
+                if var_id != child_var_id {
+                    substitute_inner(child, var_id, parser_state, visited);
                 }
             }
-            Node::Variable(_, ch_var_id) => {
-                if var_id == *ch_var_id {
-                    // 対象の変数について、clone した結果を置く代わりに lazy を置いとく
-                    *target = node_factory.lazy_node(var_id);
+            NodeType::Variable(child_var_id) => {
+                if var_id == child_var_id {
+                    parser_state.node_factory[node_id].node_type = NodeType::Lazy(var_id);
                 }
             }
-            Node::Lazy(_, _) => {}
+            NodeType::Lazy(child_var_id) => {
+                if var_id == child_var_id {
+                    // すでに置換済みの場合は何もしない
+                    return;
+                }
+                let lazy_node_id = *parser_state.lazy_table.get(&child_var_id).unwrap();
+                substitute_inner(lazy_node_id, var_id, parser_state, visited);
+            }
         }
     }
 
-    // FIXME: clone 消せる？
-    parser_state.cache_table.insert(var_id, node);
-    substitute_inner(root, var_id, &mut parser_state.node_factory);
-
-    for (var_id, node) in parser_state.cache_table.iter_mut() {
-        substitute_inner(node, *var_id, &mut parser_state.node_factory);
-    }
+    let mut visited = HashSet::new();
+    parser_state.lazy_table.insert(var_id, node_id);
+    substitute_inner(root_node_id, var_id, parser_state, &mut visited);
 }
 
-pub fn evaluate_once(parser_state: &mut ParserState, node: Node) -> Result<Node, ParseError> {
-    match node {
+pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &mut bool) {
+    match parser_state.node_factory[node_id].node_type {
         // 値の場合はそのまま返す
-        Node::Boolean(_, _) | Node::Integer(_, _) | Node::String(_, _) | Node::Variable(_, _) => {
-            Ok(node)
-        }
-        Node::Unary(node_id, opcode, child) => {
-            let child = evaluate_once(parser_state, *child)?;
-            match opcode {
-                UnaryOpecode::Negate => match child {
-                    Node::Integer(_, i) => Ok(Node::Integer(node_id, -i)),
-                    _ => Ok(Node::Unary(node_id, UnaryOpecode::Negate, Box::new(child))),
-                },
-                UnaryOpecode::Not => match child {
-                    Node::Boolean(_, b) => Ok(Node::Boolean(node_id, !b)),
-                    _ => Ok(Node::Unary(node_id, UnaryOpecode::Not, Box::new(child))),
-                },
-                UnaryOpecode::StrToInt => match child {
-                    Node::String(_, s) => Ok(Node::Integer(node_id, s.to_i64())),
-                    _ => Ok(Node::Unary(
-                        node_id,
-                        UnaryOpecode::StrToInt,
-                        Box::new(child),
-                    )),
-                },
-                UnaryOpecode::IntToStr => match child {
-                    Node::Integer(_, i) => Ok(Node::String(node_id, ICFPString::from_i64(i))),
-                    _ => Ok(Node::Unary(
-                        node_id,
-                        UnaryOpecode::IntToStr,
-                        Box::new(child),
-                    )),
-                },
-            }
-        }
-        Node::Binary(node_id, opcode, child1, child2) => {
-            let child1 = evaluate_once(parser_state, *child1)?;
-            let child2 = evaluate_once(parser_state, *child2)?;
+        NodeType::Boolean(_)
+        | NodeType::Integer(_)
+        | NodeType::String(_)
+        | NodeType::Variable(_) => {}
+        NodeType::Unary(opcode, child_id) => {
+            let child_type = parser_state.node_factory[child_id].node_type.clone();
 
             match opcode {
-                BinaryOpecode::Add => match (&child1, &child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => {
-                        Ok(parser_state.node_factory.integer_node(i1 + i2))
+                UnaryOpecode::Negate => match child_type {
+                    NodeType::Integer(i) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Integer(-1 * i);
                     }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::Add,
-                        child1,
-                        child2,
-                    )),
+                    _ => {}
                 },
-                BinaryOpecode::Sub => match (&child1, &child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => {
-                        Ok(parser_state.node_factory.integer_node(i1 - i2))
+                UnaryOpecode::Not => match child_type {
+                    NodeType::Boolean(b) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Boolean(!b);
                     }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::Sub,
-                        child1,
-                        child2,
-                    )),
+                    _ => {}
                 },
-                BinaryOpecode::Mul => match (&child1, &child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => {
-                        Ok(parser_state.node_factory.integer_node(i1 * i2))
+                UnaryOpecode::StrToInt => match child_type {
+                    NodeType::String(s) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type =
+                            NodeType::Integer(s.to_i64());
                     }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::Mul,
-                        child1,
-                        child2,
-                    )),
+                    _ => {}
                 },
-                BinaryOpecode::Div => match (&child1, &child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => {
-                        Ok(parser_state.node_factory.integer_node(i1 / i2))
+                UnaryOpecode::IntToStr => match child_type {
+                    NodeType::Integer(i) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type =
+                            NodeType::String(ICFPString::from_i64(i))
                     }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::Div,
-                        child1,
-                        child2,
-                    )),
-                },
-                BinaryOpecode::Modulo => match (&child1, &child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => {
-                        Ok(Node::Integer(node_id, i1 % i2))
-                    }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::Modulo,
-                        child1,
-                        child2,
-                    )),
-                },
-                BinaryOpecode::IntegerLarger => match (&child1, &child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => {
-                        Ok(parser_state.node_factory.boolean_node(i1 < i2))
-                    }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::IntegerLarger,
-                        child1,
-                        child2,
-                    )),
-                },
-                BinaryOpecode::IntegerSmaller => match (&child1, &child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => {
-                        Ok(parser_state.node_factory.boolean_node(i1 > i2))
-                    }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::IntegerSmaller,
-                        child1,
-                        child2,
-                    )),
-                },
-                BinaryOpecode::Equal => match (&child1, &child2) {
-                    (Node::Integer(_, i1), Node::Integer(_, i2)) => {
-                        Ok(parser_state.node_factory.boolean_node(i1 == i2))
-                    }
-                    (Node::String(_, s1), Node::String(_, s2)) => {
-                        Ok(parser_state.node_factory.boolean_node(s1 == s2))
-                    }
-                    (Node::Boolean(_, b1), Node::Boolean(_, b2)) => {
-                        Ok(parser_state.node_factory.boolean_node(b1 == b2))
-                    }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::Equal,
-                        child1,
-                        child2,
-                    )),
-                },
-                BinaryOpecode::Or => match (&child1, &child2) {
-                    (Node::Boolean(_, b1), Node::Boolean(_, b2)) => {
-                        Ok(parser_state.node_factory.boolean_node(*b1 || *b2))
-                    }
-                    _ => {
-                        Ok(parser_state
-                            .node_factory
-                            .binary_node(BinaryOpecode::Or, child1, child2))
-                    }
-                },
-                BinaryOpecode::And => match (&child1, &child2) {
-                    (Node::Boolean(_, b1), Node::Boolean(_, b2)) => {
-                        Ok(parser_state.node_factory.boolean_node(*b1 && *b2))
-                    }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::And,
-                        child1,
-                        child2,
-                    )),
-                },
-                BinaryOpecode::StrConcat => match (&child1, &child2) {
-                    (Node::String(_, s1), Node::String(_, s2)) => {
-                        Ok(parser_state.node_factory.string_node(s1.concat(&s2)))
-                    }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::StrConcat,
-                        child1,
-                        child2,
-                    )),
-                },
-                BinaryOpecode::TakeStr => match (&child1, &child2) {
-                    (Node::Integer(_, i), Node::String(_, s)) => {
-                        Ok(parser_state.node_factory.string_node(s.take(*i as usize)))
-                    }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::TakeStr,
-                        child1,
-                        child2,
-                    )),
-                },
-                BinaryOpecode::DropStr => match (&child1, &child2) {
-                    (Node::Integer(_, i), Node::String(_, s)) => {
-                        Ok(parser_state.node_factory.string_node(s.drop(*i as usize)))
-                    }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::DropStr,
-                        child1,
-                        child2,
-                    )),
-                },
-                BinaryOpecode::Apply => match child1 {
-                    Node::Lambda(_, var_id, child) => {
-                        let mut child = *child;
-                        substitute(&mut child, var_id, child2, parser_state);
-                        Ok(child)
-                    }
-                    _ => Ok(parser_state.node_factory.binary_node(
-                        BinaryOpecode::Apply,
-                        child1,
-                        child2,
-                    )),
+                    _ => {}
                 },
             }
+            if !*updated {
+                evaluate_once(parser_state, child_id, updated);
+            }
         }
-        Node::If(_, pred, first, second) => {
-            let pred = evaluate_once(parser_state, *pred)?;
-            match pred {
-                Node::Boolean(_, b) => {
-                    if b {
-                        evaluate_once(parser_state, *first)
-                    } else {
-                        evaluate_once(parser_state, *second)
+        NodeType::Binary(opcode, child1, child2) => {
+            let child_type1 = parser_state.node_factory[child1].node_type.clone();
+            let child_type2 = parser_state.node_factory[child2].node_type.clone();
+            match opcode {
+                BinaryOpecode::Add => match (child_type1, child_type2) {
+                    (NodeType::Integer(i1), NodeType::Integer(i2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Integer(i1 + i2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::Sub => match (child_type1, child_type2) {
+                    (NodeType::Integer(i1), NodeType::Integer(i2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Integer(i1 - i2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::Mul => match (child_type1, child_type2) {
+                    (NodeType::Integer(i1), NodeType::Integer(i2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Integer(i1 * i2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::Div => match (child_type1, child_type2) {
+                    (NodeType::Integer(i1), NodeType::Integer(i2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Integer(i1 / i2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::Modulo => match (child_type1, child_type2) {
+                    (NodeType::Integer(i1), NodeType::Integer(i2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Integer(i1 % i2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::IntegerLarger => match (child_type1, child_type2) {
+                    (NodeType::Integer(i1), NodeType::Integer(i2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Boolean(i1 < i2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::IntegerSmaller => match (child_type1, child_type2) {
+                    (NodeType::Integer(i1), NodeType::Integer(i2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Boolean(i1 > i2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::Equal => match (child_type1, child_type2) {
+                    (NodeType::Integer(i1), NodeType::Integer(i2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Boolean(i1 == i2);
+                    }
+                    (NodeType::String(s1), NodeType::String(s2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Boolean(s1 == s2);
+                    }
+                    (NodeType::Boolean(b1), NodeType::Boolean(b2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Boolean(b1 == b2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::Or => match (child_type1, child_type2) {
+                    (NodeType::Boolean(b1), NodeType::Boolean(b2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Boolean(b1 || b2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::And => match (child_type1, child_type2) {
+                    (NodeType::Boolean(b1), NodeType::Boolean(b2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type = NodeType::Boolean(b1 && b2);
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::StrConcat => match (child_type1, child_type2) {
+                    (NodeType::String(s1), NodeType::String(s2)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type =
+                            NodeType::String(s1.concat(&s2));
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::TakeStr => match (child_type1, child_type2) {
+                    (NodeType::Integer(i), NodeType::String(s)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type =
+                            NodeType::String(s.take(i as usize));
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::DropStr => match (child_type1, child_type2) {
+                    (NodeType::Integer(i), NodeType::String(s)) => {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type =
+                            NodeType::String(s.drop(i as usize));
+                    }
+                    _ => {}
+                },
+                BinaryOpecode::Apply => match child_type1 {
+                    NodeType::Lambda(var_id, child1_inner) => {
+                        *updated = true;
+                        substitute(child1_inner, var_id, child2, parser_state);
+                        parser_state.node_factory[node_id].node_type =
+                            parser_state.node_factory[child1_inner].node_type.clone();
+                    }
+                    _ => {}
+                },
+            }
+            if !*updated {
+                evaluate_once(parser_state, child1, updated);
+                if !*updated {
+                    evaluate_once(parser_state, child2, updated);
+                }
+            }
+        }
+        NodeType::If(pred, first, second) => match parser_state.node_factory[pred].node_type {
+            NodeType::Boolean(b) => {
+                if b {
+                    *updated = true;
+                    parser_state.node_factory[node_id].node_type =
+                        parser_state.node_factory[first].node_type.clone();
+                } else {
+                    *updated = true;
+                    parser_state.node_factory[node_id].node_type =
+                        parser_state.node_factory[second].node_type.clone();
+                }
+            }
+            _ => {
+                if !*updated {
+                    evaluate_once(parser_state, pred, updated);
+                    if !*updated {
+                        evaluate_once(parser_state, first, updated);
+                        if !*updated {
+                            evaluate_once(parser_state, second, updated);
+                        }
                     }
                 }
-                _ => Ok(parser_state.node_factory.if_node(pred, *first, *second)),
             }
+        },
+        NodeType::Lambda(i, child) => {
+            evaluate_once(parser_state, child, updated);
         }
-        Node::Lambda(_, i, child) => {
-            let child = evaluate_once(parser_state, *child)?;
-            Ok(parser_state.node_factory.lambda_node(i, child))
-        }
-        Node::Lazy(_, var_id) => {
-            if let Some(node) = parser_state.cache_table.get(&var_id) {
-                Ok(node.clone())
+        NodeType::Lazy(var_id) => {
+            if let Some(lazy_node) = parser_state.lazy_table.get(&var_id) {
+                evaluate_once(parser_state, *lazy_node, updated);
             } else {
                 unreachable!("Lazy node should be replaced by its value")
             }
@@ -492,14 +547,14 @@ pub fn evaluate_once(parser_state: &mut ParserState, node: Node) -> Result<Node,
 
 pub struct ParserState {
     node_factory: NodeFactory,
-    cache_table: HashMap<u32, Node>,
+    lazy_table: HashMap<u32, usize>,
 }
 
 impl ParserState {
     pub fn new() -> ParserState {
         ParserState {
             node_factory: NodeFactory::new(),
-            cache_table: HashMap::new(),
+            lazy_table: HashMap::new(),
         }
     }
 }
@@ -509,128 +564,128 @@ mod tests {
 
     use super::*;
 
-    fn test_sequence(input: &str, expected: Node) {
+    fn test_sequence(input: &str, expected: NodeType) {
         let result = parse(input.to_string()).unwrap();
-        assert_eq!(result, expected);
+        assert_eq!(result.node_type, expected);
     }
 
     // testcase is generated from https://icfpcontest2024.github.io/icfp.html
 
     #[test]
     fn test_unary_negate() {
-        test_sequence("U- I$", Node::Integer(0, -3));
+        test_sequence("U- I$", NodeType::Integer(-3));
     }
 
     #[test]
     fn test_unary_not() {
-        test_sequence("U! B= S$ S$", Node::Boolean(0, false));
-        test_sequence("U! B= I/ I$", Node::Boolean(0, true));
+        test_sequence("U! B= S$ S$", NodeType::Boolean(false));
+        test_sequence("U! B= I/ I$", NodeType::Boolean(true));
     }
 
     #[test]
     fn test_unary_strtoint() {
-        test_sequence("U# S4%34", Node::Integer(0, 15818151));
+        test_sequence("U# S4%34", NodeType::Integer(15818151));
     }
 
     #[test]
     fn test_add() {
-        test_sequence("B+ I# I$", Node::Integer(0, 5));
+        test_sequence("B+ I# I$", NodeType::Integer(5));
     }
 
     #[test]
     fn test_sub() {
-        test_sequence("B- I$ I#", Node::Integer(0, 1));
+        test_sequence("B- I$ I#", NodeType::Integer(1));
     }
 
     #[test]
     fn test_mul() {
-        test_sequence("B* I# I$", Node::Integer(0, 6));
+        test_sequence("B* I# I$", NodeType::Integer(6));
     }
 
     #[test]
     fn test_div() {
-        test_sequence("B/ U- I( I#", Node::Integer(0, -3));
+        test_sequence("B/ U- I( I#", NodeType::Integer(-3));
     }
 
     #[test]
     fn test_mod() {
-        test_sequence("B% U- I( I#", Node::Integer(0, -1));
+        test_sequence("B% U- I( I#", NodeType::Integer(-1));
     }
 
     #[test]
     fn test_gt() {
-        test_sequence("B< I$ I#", Node::Boolean(0, false));
-        test_sequence("B< I# I$", Node::Boolean(0, true));
+        test_sequence("B< I$ I#", NodeType::Boolean(false));
+        test_sequence("B< I# I$", NodeType::Boolean(true));
     }
 
     #[test]
     fn test_lt() {
-        test_sequence("B> I$ I#", Node::Boolean(0, true));
-        test_sequence("B> I# I$", Node::Boolean(0, false));
+        test_sequence("B> I$ I#", NodeType::Boolean(true));
+        test_sequence("B> I# I$", NodeType::Boolean(false));
     }
 
     #[test]
     fn test_eq() {
-        test_sequence("B= I$ I#", Node::Boolean(0, false));
-        test_sequence("B= I$ B+ I# I\"", Node::Boolean(0, true));
+        test_sequence("B= I$ I#", NodeType::Boolean(false));
+        test_sequence("B= I$ B+ I# I\"", NodeType::Boolean(true));
 
-        test_sequence("B= S# S#", Node::Boolean(0, true));
-        test_sequence("B= S# S$", Node::Boolean(0, false));
+        test_sequence("B= S# S#", NodeType::Boolean(true));
+        test_sequence("B= S# S$", NodeType::Boolean(false));
 
-        test_sequence("B= T B= F F", Node::Boolean(0, true));
-        test_sequence("B= F B= F F", Node::Boolean(0, false));
+        test_sequence("B= T B= F F", NodeType::Boolean(true));
+        test_sequence("B= F B= F F", NodeType::Boolean(false));
     }
 
     #[test]
     fn test_and() {
-        test_sequence("B& T F", Node::Boolean(0, false));
-        test_sequence("B& T T", Node::Boolean(0, true));
+        test_sequence("B& T F", NodeType::Boolean(false));
+        test_sequence("B& T T", NodeType::Boolean(true));
     }
 
     #[test]
     fn test_or() {
-        test_sequence("B| T F", Node::Boolean(0, true));
-        test_sequence("B| F F", Node::Boolean(0, false));
+        test_sequence("B| T F", NodeType::Boolean(true));
+        test_sequence("B| F F", NodeType::Boolean(false));
     }
 
     #[test]
     fn test_concat() {
         let expected = ICFPString::from_rawstr("#$").unwrap();
-        test_sequence("B. S# S$", Node::String(0, expected));
+        test_sequence("B. S# S$", NodeType::String(expected));
     }
 
     #[test]
     fn test_take() {
         let expected = ICFPString::from_rawstr("#a").unwrap();
-        test_sequence("BT I# S#agc4gs", Node::String(0, expected));
+        test_sequence("BT I# S#agc4gs", NodeType::String(expected));
     }
 
     #[test]
     fn test_drop() {
         let expected = ICFPString::from_rawstr("gc4gs").unwrap();
-        test_sequence("BD I# S#agc4gs", Node::String(0, expected));
+        test_sequence("BD I# S#agc4gs", NodeType::String(expected));
     }
 
     #[test]
     fn test_if() {
-        test_sequence("? T I# I$", Node::Integer(0, 2));
-        test_sequence("? F I# I$", Node::Integer(0, 3));
+        test_sequence("? T I# I$", NodeType::Integer(2));
+        test_sequence("? F I# I$", NodeType::Integer(3));
         test_sequence(
             "? B> I# I$ S9%3 S./",
-            Node::String(0, ICFPString::from_rawstr("./").unwrap()),
+            NodeType::String(ICFPString::from_rawstr("./").unwrap()),
         );
     }
 
     #[test]
     fn test_lambda_apply1() {
-        test_sequence("B$ L# B$ L\" B+ v\" v\" B* I$ I# v8", Node::Integer(0, 12));
+        test_sequence("B$ L# B$ L\" B+ v\" v\" B* I$ I# v8", NodeType::Integer(12));
     }
 
     #[test]
     fn test_lambda_apply2() {
         test_sequence(
             "B$ B$ L# L$ v# B. SB%,,/ S}Q/2,$_ IK",
-            Node::String(0, ICFPString::from_rawstr("B%,,/}Q/2,$_").unwrap()),
+            NodeType::String(ICFPString::from_rawstr("B%,,/}Q/2,$_").unwrap()),
         )
     }
 
@@ -638,7 +693,8 @@ mod tests {
     fn test_lambda_apply4() {
         test_sequence(
                     "B$ B$ L\" B$ L# B$ v\" B$ v# v# L# B$ v\" B$ v# v# L\" L# ? B= v# I! I\" B$ L$ B+ B$ v\" v$ B$ v\" v$ B- v# I\" I%",
-                    Node::Integer(0, 16),
+                    NodeType::Integer(16),
                 )
     }
 }
+ 

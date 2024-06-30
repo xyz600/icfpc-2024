@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use core::parser::ast::{parse, Node};
+use core::parser::ast::{parse, NodeType};
 use core::parser::icfpstring::ICFPString;
 use std::fs;
 use std::path::PathBuf;
@@ -33,8 +33,8 @@ fn main() -> Result<(), anyhow::Error> {
         Ok(())
     } else {
         let result_node = parse(contents)?;
-        match result_node {
-            Node::String(_, s) => {
+        match result_node.node_type {
+            NodeType::String(s) => {
                 for c in s.iter() {
                     print!("{}", c);
                 }
