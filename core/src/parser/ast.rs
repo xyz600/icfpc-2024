@@ -44,6 +44,12 @@ impl PartialEq for Node {
 }
 
 impl Node {
+    pub fn len(&self) -> usize {
+        let mut size = 0;
+        self.visit(&mut |_node| size += 1);
+        size
+    }
+
     fn id(&self) -> u32 {
         match self {
             Node::Boolean(id, _)
