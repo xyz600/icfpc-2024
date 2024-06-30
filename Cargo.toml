@@ -4,6 +4,7 @@ members = [
     "core", 
     "lambdaman-solver", 
     "macro-util",
-    "message-sender",
+    "message-sender", 
+    "spaceship-solver",
     "translator"
 ]

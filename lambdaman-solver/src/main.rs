@@ -239,12 +239,12 @@ fn main() -> Result<(), anyhow::Error> {
             use_neighbor_cache: false,
             cache_filepath: PathBuf::from_str(path).unwrap(),
             debug: false,
-            time_ms: 1_000,
+            time_ms: 600_000,
             start_kick_step: 5,
             kick_step_diff: 10,
             end_kick_step: problem.dimension() as usize / 10,
             fail_count_threashold: 50,
-            max_depth: 2,
+            max_depth: 6,
         },
     );
 

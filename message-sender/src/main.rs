@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 /// このプログラムはコマンドライン引数からファイルパスを受け取り、その内容を出力します。
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(name = "file_reader")]
 #[command(about = "A simple file reader")]
 struct Args {
@@ -13,7 +13,7 @@ struct Args {
     command: Commands,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 enum Commands {
     Lambdaman,
     LambdamanGet {
@@ -28,6 +28,10 @@ enum Commands {
         filepath: PathBuf,
     },
     Spaceship,
+    SpaceshipGet {
+        #[arg(short, long)]
+        problem_id: String,
+    },
     Echo {
         #[arg(short, long)]
         message: String,
@@ -35,7 +39,15 @@ enum Commands {
     Scoreboard,
     LanguageTest,
     Efficiency,
+    EfficiencyGet {
+        #[arg(short, long)]
+        problem_id: String,
+    },
     D3,
+    D3Get {
+        #[arg(short, long)]
+        problem_id: String,
+    },
 }
 
 fn read_content(path: &PathBuf) -> Result<String, anyhow::Error> {
@@ -58,14 +70,17 @@ fn decode(contents: String) -> Result<String, anyhow::Error> {
 
 fn select_content(command: Commands) -> Result<String, anyhow::Error> {
     match command {
-        Commands::Lambdaman => Ok("get lambdaman".to_string()),
         Commands::Spaceship => Ok("get spaceship".to_string()),
+        Commands::SpaceshipGet { problem_id } => Ok(format!("get spaceship{}", problem_id)),
         Commands::Echo { message } => Ok(format!("get echo {}", message)),
         Commands::Scoreboard => Ok("get scoreboard".to_string()),
         Commands::LanguageTest => Ok("get language_test".to_string()),
         Commands::Efficiency => Ok("get efficiency".to_string()),
+        Commands::EfficiencyGet { problem_id } => Ok(format!("get efficiency{}", problem_id)),
         Commands::D3 => Ok("get 3d".to_string()),
-        Commands::LambdamanGet { problem_id } => Ok(format!("get lambdaman {}", problem_id)),
+        Commands::D3Get { problem_id } => Ok(format!("get 3d{}", problem_id)),
+        Commands::Lambdaman => Ok("get lambdaman".to_string()),
+        Commands::LambdamanGet { problem_id } => Ok(format!("get lambdaman{}", problem_id)),
         Commands::LambdamanSubmit {
             problem_id,
             filepath,
@@ -83,11 +98,15 @@ async fn main() -> Result<(), anyhow::Error> {
     let auth_token = "5b4a264f-5e00-433c-ac1b-1f9a8b30f161".to_string();
     let client = ICFPCClient::new(auth_token);
 
-    let message = select_content(args.command)?;
+    let message = select_content(args.command.clone())?;
     let encoded_message = encode(message)?;
 
     let response_message = client.post_message(encoded_message).await?;
-    let decoded_message = decode(response_message)?;
+    let decoded_message = match args.command {
+        // 巨大な文字列を解釈するための問題なので、decode しちゃダメ
+        Commands::EfficiencyGet { .. } => response_message,
+        _ => decode(response_message)?,
+    };
     println!("{}", decoded_message);
 
     Ok(())
