@@ -54,10 +54,9 @@ impl Problem {
     fn bfs(&mut self, start: usize) {
         let mut queue = VecDeque::new();
         queue.push_back((start, 0));
+        self.distance_table[start][start] = 0;
 
         while let Some((id, distance)) = queue.pop_front() {
-            self.distance_table[start][id] = distance;
-
             for i in 0..4 {
                 let (y, x) = self.coords[id];
                 let ny = y as i64 + DY[i];
@@ -77,6 +76,8 @@ impl Problem {
                 if self.distance_table[start][next_id] != std::i64::MAX {
                     continue;
                 }
+                self.distance_table[start][next_id] = distance + 1;
+
                 queue.push_back((next_id, distance + 1));
             }
         }
@@ -181,7 +182,6 @@ fn bfs(problem: &Problem, start: usize, goal: usize) -> String {
             if recur_table[next_id] != std::usize::MAX {
                 continue;
             }
-
             recur_table[next_id] = (dir + 2) % 4;
             queue.push_back((next_id, distance + 1));
         }
@@ -220,12 +220,14 @@ fn main() -> Result<(), anyhow::Error> {
     let solution = ArraySolution::new(problem.dimension() as usize);
     let path = "lambdaman.txt";
 
+    eprintln!("dimension: {}", problem.dimension());
+
     let init_solution = opt3::solve(
         &problem,
         solution,
         opt3::Opt3Config {
             use_neighbor_cache: false,
-            debug: true,
+            debug: false,
             cache_filepath: PathBuf::from_str(path).unwrap(),
         },
     );
@@ -248,7 +250,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     // パスの復元
     let path_all = reconstruct_path(&problem, &final_solution);
-    println!("{}", path_all);
+    print!("{}", path_all);
 
     Ok(())
 }

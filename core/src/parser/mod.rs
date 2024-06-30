@@ -30,7 +30,6 @@ pub fn parse(input: String) -> Result<ast::Node, ParseError> {
     let mut queue = VecDeque::from_iter(token_list);
     let mut node_factory = NodeFactory::new();
     let ast = ast::parse(&mut queue, &mut node_factory)?;
-    eprintln!("{}", ast.to_dot_string());
     let evaluated_ast = ast::evaluate(ast, &mut node_factory)?;
     Ok(evaluated_ast)
 }
