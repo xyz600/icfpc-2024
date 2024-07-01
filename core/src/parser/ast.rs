@@ -337,7 +337,7 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
         print_node(&parser_state);
     }
 
-    for iter in 0..1_000 {
+    for iter in 0..200 {
         if iter % 1000 == 0 {
             println!(
                 "iter: {}, node_len: {}",
