@@ -324,7 +324,7 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
     let root_node_id = construct_node(&mut parser_state, &mut queue)?;
     parser_state.node_factory.root_id = root_node_id;
 
-    let debug = true;
+    let debug = false;
     {
         let mut visited = HashSet::new();
         alpha_convert(
@@ -337,7 +337,7 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
         print_node(&parser_state);
     }
 
-    for iter in 0..200 {
+    for iter in 0..10_000_000 {
         if iter % 1000 == 0 {
             println!(
                 "iter: {}, node_len: {}",
@@ -346,17 +346,9 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
             );
         }
         let mut updated = false;
-        let mut eval_node_visited: HashSet<usize> = HashSet::new();
         let root_id = parser_state.node_factory.root_id;
 
-        evaluate_once(
-            &mut parser_state,
-            root_id,
-            &mut updated,
-            0,
-            &mut eval_node_visited,
-            debug,
-        );
+        evaluate_once(&mut parser_state, root_id, &mut updated, 0, debug);
         if debug {
             print_node(&parser_state);
         }
@@ -440,7 +432,6 @@ pub fn evaluate_once(
     node_id: usize,
     updated: &mut bool,
     depth: usize,
-    eval_node_visited: &mut HashSet<usize>,
     debug: bool,
 ) {
     if debug {
@@ -476,11 +467,6 @@ pub fn evaluate_once(
             _ => {}
         };
     }
-
-    if eval_node_visited.contains(&node_id) {
-        return;
-    }
-    eval_node_visited.insert(node_id);
 
     match parser_state.node_factory[node_id].node_type {
         // 値の場合はそのまま返す
@@ -525,14 +511,7 @@ pub fn evaluate_once(
                 },
             }
             if !*updated {
-                evaluate_once(
-                    parser_state,
-                    child_id,
-                    updated,
-                    depth + 1,
-                    eval_node_visited,
-                    debug,
-                );
+                evaluate_once(parser_state, child_id, updated, depth + 1, debug);
             }
         }
         NodeType::Binary(opcode, child1, child2) => {
@@ -696,23 +675,9 @@ pub fn evaluate_once(
                 },
             }
             if !*updated {
-                evaluate_once(
-                    parser_state,
-                    child1,
-                    updated,
-                    depth + 1,
-                    eval_node_visited,
-                    debug,
-                );
+                evaluate_once(parser_state, child1, updated, depth + 1, debug);
                 if !*updated {
-                    evaluate_once(
-                        parser_state,
-                        child2,
-                        updated,
-                        depth + 1,
-                        eval_node_visited,
-                        debug,
-                    );
+                    evaluate_once(parser_state, child2, updated, depth + 1, debug);
                 }
             }
         }
@@ -735,32 +700,11 @@ pub fn evaluate_once(
                 }
                 _ => {
                     if !*updated {
-                        evaluate_once(
-                            parser_state,
-                            pred,
-                            updated,
-                            depth + 1,
-                            eval_node_visited,
-                            debug,
-                        );
+                        evaluate_once(parser_state, pred, updated, depth + 1, debug);
                         if !*updated {
-                            evaluate_once(
-                                parser_state,
-                                first,
-                                updated,
-                                depth + 1,
-                                eval_node_visited,
-                                debug,
-                            );
+                            evaluate_once(parser_state, first, updated, depth + 1, debug);
                             if !*updated {
-                                evaluate_once(
-                                    parser_state,
-                                    second,
-                                    updated,
-                                    depth + 1,
-                                    eval_node_visited,
-                                    debug,
-                                );
+                                evaluate_once(parser_state, second, updated, depth + 1, debug);
                             }
                         }
                     }
@@ -770,14 +714,7 @@ pub fn evaluate_once(
         NodeType::Lambda(_var_id, child) => {
             let child = extract_node(parser_state, child, updated);
             if !*updated {
-                evaluate_once(
-                    parser_state,
-                    child,
-                    updated,
-                    depth + 1,
-                    eval_node_visited,
-                    debug,
-                );
+                evaluate_once(parser_state, child, updated, depth + 1, debug);
             }
         }
         NodeType::Lazy(lazy_node) => {
@@ -795,14 +732,7 @@ pub fn evaluate_once(
                 }
                 _ => {
                     if !*updated {
-                        evaluate_once(
-                            parser_state,
-                            lazy_node,
-                            updated,
-                            depth + 1,
-                            eval_node_visited,
-                            debug,
-                        );
+                        evaluate_once(parser_state, lazy_node, updated, depth + 1, debug);
                     }
                 }
             }
