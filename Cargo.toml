@@ -5,6 +5,7 @@ members = [
     "lambdaman-solver", 
     "macro-util",
     "message-sender", 
+    "solution-encoder", 
     "spaceship-solver",
     "translator"
 ]

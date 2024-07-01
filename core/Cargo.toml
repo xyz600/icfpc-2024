@@ -13,3 +13,4 @@ macro-util = { path = "../macro-util" }
 proconio = "0.4.5"
 rayon = "1.10"
 rand = "0.8.5"
+num-bigint = "0.4.6"

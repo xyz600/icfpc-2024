@@ -1,3 +1,5 @@
+use num_bigint::BigInt;
+
 use super::icfpstring::ICFPString;
 use super::ParseError;
 
@@ -30,7 +32,7 @@ pub enum BinaryOpecode {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Boolean(bool),
-    Integer(i64),
+    Integer(BigInt),
     String(ICFPString),
     Unary(UnaryOpecode),
     Binary(BinaryOpecode),
@@ -48,7 +50,7 @@ pub fn tokenize(input: String) -> Result<Vec<TokenType>, ParseError> {
             'F' => ret.push(TokenType::Boolean(false)),
             'I' => {
                 let s = ICFPString::from_str(chars[1..].to_vec())?;
-                let num = s.to_i64();
+                let num = s.to_int();
                 ret.push(TokenType::Integer(num));
             }
             'S' => {
@@ -82,13 +84,13 @@ pub fn tokenize(input: String) -> Result<Vec<TokenType>, ParseError> {
             '?' => ret.push(TokenType::If),
             'L' => {
                 let s = ICFPString::from_str(chars[1..].to_vec())?;
-                let num = s.to_i64();
-                ret.push(TokenType::Lambda(num as u32));
+                let num = s.to_int();
+                ret.push(TokenType::Lambda(num.try_into().unwrap()));
             }
             'v' => {
                 let s = ICFPString::from_str(chars[1..].to_vec())?;
-                let num = s.to_i64();
-                ret.push(TokenType::Variable(num as u32));
+                let num = s.to_int();
+                ret.push(TokenType::Variable(num.try_into().unwrap()));
             }
             _ => return Err(ParseError::InvalidToken),
         }
@@ -98,6 +100,8 @@ pub fn tokenize(input: String) -> Result<Vec<TokenType>, ParseError> {
 
 #[cfg(test)]
 mod tests {
+    use num_bigint::BigInt;
+
     use crate::parser::{icfpstring::ICFPString, tokenizer::TokenType};
 
     use super::{tokenize, BinaryOpecode, UnaryOpecode};
@@ -122,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_example_integer() {
-        run_single_token_test("I/6", TokenType::Integer(1337));
+        run_single_token_test("I/6", TokenType::Integer(BigInt::from(1337)));
     }
 
     #[test]
@@ -238,8 +242,8 @@ mod tests {
         let expected = vec![
             TokenType::If,
             TokenType::Binary(BinaryOpecode::IntegerSmaller),
-            TokenType::Integer(2),
-            TokenType::Integer(3),
+            TokenType::Integer(BigInt::from(2)),
+            TokenType::Integer(BigInt::from(3)),
             TokenType::String(ICFPString::from_str("9%3".chars().collect()).unwrap()),
             TokenType::String(ICFPString::from_str("./".chars().collect()).unwrap()),
         ];

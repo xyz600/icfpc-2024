@@ -3,6 +3,8 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+use num_bigint::BigInt;
+
 use super::{
     icfpstring::ICFPString,
     tokenizer::{self, BinaryOpecode, TokenType, UnaryOpecode},
@@ -12,7 +14,7 @@ use super::{
 #[derive(Clone, Debug, PartialEq)]
 pub enum NodeType {
     Boolean(bool),
-    Integer(i64),
+    Integer(BigInt),
     String(ICFPString),
     Unary(UnaryOpecode, usize),
     Binary(BinaryOpecode, usize, usize),
@@ -70,7 +72,7 @@ impl NodeFactory {
         self.node_buffer.len() - 1
     }
 
-    fn integer_node(&mut self, i: i64) -> usize {
+    fn integer_node(&mut self, i: BigInt) -> usize {
         let new_node_id = self.get_node_id();
         self.node_buffer
             .push(Node::new(new_node_id, NodeType::Integer(i)));
@@ -428,7 +430,7 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
                     NodeType::String(s) => {
                         *updated = true;
                         parser_state.node_factory[node_id].node_type =
-                            NodeType::Integer(s.to_i64());
+                            NodeType::Integer(s.to_int());
                     }
                     _ => {}
                 },
@@ -436,7 +438,7 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
                     NodeType::Integer(i) => {
                         *updated = true;
                         parser_state.node_factory[node_id].node_type =
-                            NodeType::String(ICFPString::from_i64(i))
+                            NodeType::String(ICFPString::from_int(i))
                     }
                     _ => {}
                 },
@@ -538,16 +540,18 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
                 BinaryOpecode::TakeStr => match (child_type1, child_type2) {
                     (NodeType::Integer(i), NodeType::String(s)) => {
                         *updated = true;
+                        // Note: bigint のサイズの take / drop はサポートできない
                         parser_state.node_factory[node_id].node_type =
-                            NodeType::String(s.take(i as usize));
+                            NodeType::String(s.take(i.try_into().unwrap()));
                     }
                     _ => {}
                 },
                 BinaryOpecode::DropStr => match (child_type1, child_type2) {
                     (NodeType::Integer(i), NodeType::String(s)) => {
                         *updated = true;
+                        // Note: bigint のサイズの take / drop はサポートできない
                         parser_state.node_factory[node_id].node_type =
-                            NodeType::String(s.drop(i as usize));
+                            NodeType::String(s.drop(i.try_into().unwrap()));
                     }
                     _ => {}
                 },
@@ -719,7 +723,7 @@ mod tests {
 
     #[test]
     fn test_unary_negate() {
-        test_sequence("U- I$", NodeType::Integer(-3));
+        test_sequence("U- I$", NodeType::Integer(BigInt::from(-3)));
     }
 
     #[test]
@@ -730,32 +734,32 @@ mod tests {
 
     #[test]
     fn test_unary_strtoint() {
-        test_sequence("U# S4%34", NodeType::Integer(15818151));
+        test_sequence("U# S4%34", NodeType::Integer(BigInt::from(15818151)));
     }
 
     #[test]
     fn test_add() {
-        test_sequence("B+ I# I$", NodeType::Integer(5));
+        test_sequence("B+ I# I$", NodeType::Integer(BigInt::from(5)));
     }
 
     #[test]
     fn test_sub() {
-        test_sequence("B- I$ I#", NodeType::Integer(1));
+        test_sequence("B- I$ I#", NodeType::Integer(BigInt::from(1)));
     }
 
     #[test]
     fn test_mul() {
-        test_sequence("B* I# I$", NodeType::Integer(6));
+        test_sequence("B* I# I$", NodeType::Integer(BigInt::from(6)));
     }
 
     #[test]
     fn test_div() {
-        test_sequence("B/ U- I( I#", NodeType::Integer(-3));
+        test_sequence("B/ U- I( I#", NodeType::Integer(BigInt::from(-3)));
     }
 
     #[test]
     fn test_mod() {
-        test_sequence("B% U- I( I#", NodeType::Integer(-1));
+        test_sequence("B% U- I( I#", NodeType::Integer(BigInt::from(-1)));
     }
 
     #[test]
@@ -814,8 +818,8 @@ mod tests {
 
     #[test]
     fn test_if() {
-        test_sequence("? T I# I$", NodeType::Integer(2));
-        test_sequence("? F I# I$", NodeType::Integer(3));
+        test_sequence("? T I# I$", NodeType::Integer(BigInt::from(2)));
+        test_sequence("? F I# I$", NodeType::Integer(BigInt::from(3)));
         test_sequence(
             "? B> I# I$ S9%3 S./",
             NodeType::String(ICFPString::from_rawstr("./").unwrap()),
@@ -824,7 +828,10 @@ mod tests {
 
     #[test]
     fn test_lambda_apply1() {
-        test_sequence("B$ L# B$ L\" B+ v\" v\" B* I$ I# v8", NodeType::Integer(12));
+        test_sequence(
+            "B$ L# B$ L\" B+ v\" v\" B* I$ I# v8",
+            NodeType::Integer(BigInt::from(12)),
+        );
     }
 
     #[test]
@@ -839,7 +846,7 @@ mod tests {
     fn test_lambda_apply4() {
         test_sequence(
                     "B$ B$ L\" B$ L# B$ v\" B$ v# v# L# B$ v\" B$ v# v# L\" L# ? B= v# I! I\" B$ L$ B+ B$ v\" v$ B$ v\" v$ B- v# I\" I%",
-                    NodeType::Integer(16),
+                    NodeType::Integer(BigInt::from(16)),
                 )
     }
 }
