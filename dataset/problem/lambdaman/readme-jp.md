@@ -19,27 +19,27 @@ LLLDURRRUDRRURR
 Lambda-Manが壁を含むマスに移動するよう指示された場合、何も起こらず、その指示はスキップされます。解答は最大で `1,000,000` 文字で構成されることができます。
 
 以下のレベルが利用可能です：
-* [lambdaman1] 最高スコア: 33
-* [lambdaman2] 最高スコア: 44
-* [lambdaman3] 最高スコア: 58
-* [lambdaman4] 最高スコア: 151
-* [lambdaman5] 最高スコア: 142
-* [lambdaman6] 最高スコア: 73
-* [lambdaman7] 最高スコア: 139
-* [lambdaman8] 最高スコア: 125
-* [lambdaman9] 最高スコア: 114
-* [lambdaman10] 最高スコア: 164
-* [lambdaman11] 最高スコア: 1524
-* [lambdaman12] 最高スコア: 1588
-* [lambdaman13] 最高スコア: 1578
-* [lambdaman14] 最高スコア: 1565
-* [lambdaman15] 最高スコア: 1581
-* [lambdaman16] 最高スコア: 287
-* [lambdaman17] 最高スコア: 231
-* [lambdaman18] 最高スコア: 3521
-* [lambdaman19] 最高スコア: 1442
-* [lambdaman20] 最高スコア: 5264
-* [lambdaman21] 最高スコア: 9194
+* [lambdaman1] Your score: 33. Best score: 33.
+* [lambdaman2] Your score: 44. Best score: 44.
+* [lambdaman3] Your score: 58. Best score: 58.
+* [lambdaman4] Your score: 413. Best score: 111.
+* [lambdaman5] Your score: 197. Best score: 105.
+* [lambdaman6] Your score: 217. Best score: 73.
+* [lambdaman7] Your score: 415. Best score: 111.
+* [lambdaman8] Your score: 9809. Best score: 113.
+* [lambdaman9] Your score: 2525. Best score: 109.
+* [lambdaman10] Your score: 2320. Best score: 113.
+* [lambdaman11] Your score: 10344. Best score: 132.
+* [lambdaman12] Your score: 10215. Best score: 130.
+* [lambdaman13] Your score: 10014. Best score: 129.
+* [lambdaman14] Your score: 10013. Best score: 129.
+* [lambdaman15] Your score: 10040. Best score: 129.
+* [lambdaman16] Your score: 16394. Best score: 134.
+* [lambdaman17] Your score: 2290. Best score: 113.
+* [lambdaman18] Your score: 11178. Best score: 117.
+* [lambdaman19] Your score: 16934. Best score: 237.
+* [lambdaman20] Your score: 16704. Best score: 177.
+* [lambdaman21] Best score: 114.
 
 解答を提出するには、次のICFP式を送信してください：
 
