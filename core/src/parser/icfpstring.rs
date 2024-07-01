@@ -1,6 +1,7 @@
 use std::{fmt::Display, ops::Index};
 
 use macro_util::str_to_char_array;
+use num_bigint::BigInt;
 
 use super::ParseError;
 
@@ -50,11 +51,12 @@ impl ICFPString {
         Ok(ICFPString { s })
     }
 
-    pub fn from_i64(input: i64) -> ICFPString {
+    pub fn from_int(input: BigInt) -> ICFPString {
         let mut s = vec![];
         let mut input = input;
-        while input > 0 {
-            s.push((input % 94) as u8);
+        let base = BigInt::from(94);
+        while input > BigInt::ZERO {
+            s.push((input.clone() % base.clone()).try_into().unwrap());
             input /= 94;
         }
         s.reverse();
@@ -72,8 +74,8 @@ impl ICFPString {
         Ok(ret)
     }
 
-    pub fn to_i64(&self) -> i64 {
-        let mut ret = 0;
+    pub fn to_int(&self) -> BigInt {
+        let mut ret = BigInt::ZERO;
         for index in self.s.iter() {
             ret = ret * 94 + *index as i64;
         }
@@ -207,8 +209,8 @@ mod tests_rawstr {
 
     #[test]
     fn test_fromi64() {
-        let input = 1337;
-        let output = ICFPString::from_i64(input).to_string().unwrap();
+        let input = BigInt::from(1337);
+        let output = ICFPString::from_int(input).to_string().unwrap();
         let expected = to_vec_char("/6");
 
         assert_eq!(output, expected);
@@ -218,8 +220,8 @@ mod tests_rawstr {
     fn test_toi64() {
         let input = to_vec_char("/6");
         let s = ICFPString::from_str(input).unwrap();
-        let output = s.to_i64();
-        let expected = 1337;
+        let output = s.to_int();
+        let expected = BigInt::from(1337);
         assert_eq!(output, expected);
     }
 }

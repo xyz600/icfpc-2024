@@ -63,6 +63,16 @@ enum Commands {
         #[arg(short, long)]
         problem_id: String,
     },
+    D3Test {
+        #[arg(short, long)]
+        filepath: PathBuf,
+
+        #[arg(short, long)]
+        a: i64,
+
+        #[arg(short, long)]
+        b: i64,
+    },
     D3Submit {
         #[arg(short, long)]
         problem_id: String,
@@ -116,6 +126,10 @@ fn select_content(command: Commands) -> Result<String, anyhow::Error> {
         Commands::D3 => Ok("get 3d".to_string()),
         Commands::D3Example => Ok("get 3d-example".to_string()),
         Commands::D3Get { problem_id } => Ok(format!("get 3d{}", problem_id)),
+        Commands::D3Test { filepath, a, b } => {
+            let contents = read_content(&filepath)?;
+            Ok(format!("test 3d {} {}\n {}", a, b, contents))
+        }
         Commands::D3Submit {
             problem_id,
             filepath,
@@ -149,6 +163,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let decoded_message = match args.command {
         // 巨大な文字列を解釈するための問題なので、decode しちゃダメ
         Commands::EfficiencyGet { .. } => response_message,
+        Commands::D3Test { .. } => response_message,
         _ => decode(response_message)?,
     };
     println!("{}", decoded_message);
