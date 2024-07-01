@@ -41,6 +41,8 @@ pub struct NodeFactory {
     var_id: u32,
     node_buffer: Vec<Node>,
     root_id: usize,
+
+    node_id_buffer: Vec<usize>,
 }
 
 impl NodeFactory {
@@ -50,13 +52,20 @@ impl NodeFactory {
             var_id: 128,
             node_buffer: Vec::new(),
             root_id: 0,
+            node_id_buffer: Vec::new(),
         }
     }
 
     fn get_node_id(&mut self) -> usize {
-        let ret = self.node_id;
-        self.node_id += 1;
-        ret
+        if let Some(node_id) = self.node_id_buffer.pop() {
+            node_id
+        } else {
+            let ret = self.node_id;
+            self.node_id += 1;
+            self.node_buffer
+                .push(Node::new(ret, NodeType::Boolean(true)));
+            ret
+        }
     }
 
     fn get_var_id(&mut self) -> u32 {
@@ -67,67 +76,61 @@ impl NodeFactory {
 
     fn boolean_node(&mut self, b: bool) -> usize {
         let new_node_id = self.get_node_id();
-        self.node_buffer
-            .push(Node::new(new_node_id, NodeType::Boolean(b)));
-        self.node_buffer.len() - 1
+        self.node_buffer[new_node_id] = Node::new(new_node_id, NodeType::Boolean(b));
+        new_node_id
     }
 
     fn integer_node(&mut self, i: BigInt) -> usize {
         let new_node_id = self.get_node_id();
-        self.node_buffer
-            .push(Node::new(new_node_id, NodeType::Integer(i)));
-        self.node_buffer.len() - 1
+        self.node_buffer[new_node_id] = Node::new(new_node_id, NodeType::Integer(i));
+        new_node_id
     }
 
     fn string_node(&mut self, s: ICFPString) -> usize {
         let new_node_id = self.get_node_id();
-        self.node_buffer
-            .push(Node::new(new_node_id, NodeType::String(s)));
-        self.node_buffer.len() - 1
+        self.node_buffer[new_node_id] = Node::new(new_node_id, NodeType::String(s));
+        new_node_id
     }
 
     fn unary_node(&mut self, opcode: UnaryOpecode, child_id: usize) -> usize {
         let new_node_id = self.get_node_id();
-        self.node_buffer
-            .push(Node::new(new_node_id, NodeType::Unary(opcode, child_id)));
-        self.node_buffer.len() - 1
+        self.node_buffer[new_node_id] = Node::new(new_node_id, NodeType::Unary(opcode, child_id));
+        new_node_id
     }
 
     fn binary_node(&mut self, opcode: BinaryOpecode, child_id1: usize, child_id2: usize) -> usize {
         let new_node_id = self.get_node_id();
-        self.node_buffer.push(Node::new(
-            new_node_id,
-            NodeType::Binary(opcode, child_id1, child_id2),
-        ));
-        self.node_buffer.len() - 1
+        self.node_buffer[new_node_id] =
+            Node::new(new_node_id, NodeType::Binary(opcode, child_id1, child_id2));
+        new_node_id
     }
 
     fn if_node(&mut self, pred: usize, first: usize, second: usize) -> usize {
         let new_node_id = self.get_node_id();
-        self.node_buffer
-            .push(Node::new(new_node_id, NodeType::If(pred, first, second)));
-        self.node_buffer.len() - 1
+        self.node_buffer[new_node_id] = Node::new(new_node_id, NodeType::If(pred, first, second));
+        new_node_id
     }
 
     fn lambda_node(&mut self, var_id: u32, expr: usize) -> usize {
         let new_node_id = self.get_node_id();
-        self.node_buffer
-            .push(Node::new(new_node_id, NodeType::Lambda(var_id, expr)));
-        self.node_buffer.len() - 1
+        self.node_buffer[new_node_id] = Node::new(new_node_id, NodeType::Lambda(var_id, expr));
+        new_node_id
     }
 
     fn variable_node(&mut self, var_id: u32) -> usize {
         let new_node_id = self.get_node_id();
-        self.node_buffer
-            .push(Node::new(new_node_id, NodeType::Variable(var_id)));
-        self.node_buffer.len() - 1
+        self.node_buffer[new_node_id] = Node::new(new_node_id, NodeType::Variable(var_id));
+        new_node_id
     }
 
     fn lazy_node(&mut self, lazy_node_id: usize) -> usize {
         let new_node_id = self.get_node_id();
-        self.node_buffer
-            .push(Node::new(new_node_id, NodeType::Lazy(lazy_node_id)));
-        self.node_buffer.len() - 1
+        self.node_buffer[new_node_id] = Node::new(new_node_id, NodeType::Lazy(lazy_node_id));
+        new_node_id
+    }
+
+    fn discard_node(&mut self, node_id: usize) {
+        self.node_id_buffer.push(node_id);
     }
 }
 
@@ -333,12 +336,13 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
             &mut visited,
         );
     }
-    if debug {
+    if true {
         print_node(&parser_state);
     }
 
     for iter in 0..10_000_000 {
-        if iter % 1000 == 0 {
+        let period = if debug { 1 } else { 1000 };
+        if iter % period == 0 {
             println!(
                 "iter: {}, node_len: {}",
                 iter,
@@ -526,6 +530,78 @@ pub fn evaluate_once(
                     (NodeType::Integer(i1), NodeType::Integer(i2)) => {
                         *updated = true;
                         parser_state.node_factory[node_id].node_type = NodeType::Integer(i1 + i2);
+
+                        // child1, child2 は不要なので回収
+                        parser_state.node_factory.discard_node(child1);
+                        parser_state.node_factory.discard_node(child2);
+                    }
+                    (
+                        NodeType::Integer(i1),
+                        NodeType::Binary(BinaryOpecode::Add, child3, child4),
+                    ) => {
+                        let child3 = extract_node(parser_state, child3, updated);
+                        let child_type3 = parser_state.node_factory[child3].node_type.clone();
+                        let child4 = extract_node(parser_state, child4, updated);
+                        let child_type4 = parser_state.node_factory[child4].node_type.clone();
+
+                        // Add(fix, Add(var, fix)) => Add(Add(fix, fix), var) みたいにすると、1つ階層が減る
+                        match (child_type3, child_type4) {
+                            (NodeType::Integer(i3), _) => {
+                                *updated = true;
+                                parser_state.node_factory[child1].node_type =
+                                    NodeType::Integer(i1 + i3);
+                                parser_state.node_factory[child2].node_type =
+                                    parser_state.node_factory[child4].node_type.clone();
+
+                                // 即値を移したので回収
+                                parser_state.node_factory.discard_node(child3);
+                            }
+                            (_, NodeType::Integer(i4)) => {
+                                *updated = true;
+                                parser_state.node_factory[child1].node_type =
+                                    NodeType::Integer(i1 + i4);
+                                parser_state.node_factory[child2].node_type =
+                                    parser_state.node_factory[child3].node_type.clone();
+
+                                // 即値を移したので回収
+                                parser_state.node_factory.discard_node(child4);
+                            }
+                            _ => {}
+                        }
+                    }
+                    (
+                        NodeType::Binary(BinaryOpecode::Add, child3, child4),
+                        NodeType::Integer(i2),
+                    ) => {
+                        let child3 = extract_node(parser_state, child3, updated);
+                        let child_type3 = parser_state.node_factory[child3].node_type.clone();
+                        let child4 = extract_node(parser_state, child4, updated);
+                        let child_type4 = parser_state.node_factory[child4].node_type.clone();
+
+                        // Add(fix, Add(var, fix)) => Add(var, Add(fix, fix)) みたいにすると、1つ階層が減る
+                        match (child_type3, child_type4) {
+                            (NodeType::Integer(i3), _) => {
+                                *updated = true;
+                                parser_state.node_factory[child2].node_type =
+                                    NodeType::Integer(i2 + i3);
+                                parser_state.node_factory[child1].node_type =
+                                    parser_state.node_factory[child4].node_type.clone();
+
+                                // 即値を移したので回収
+                                parser_state.node_factory.discard_node(child3);
+                            }
+                            (_, NodeType::Integer(i4)) => {
+                                *updated = true;
+                                parser_state.node_factory[child2].node_type =
+                                    NodeType::Integer(i2 + i4);
+                                parser_state.node_factory[child1].node_type =
+                                    parser_state.node_factory[child3].node_type.clone();
+
+                                // 即値を移したので回収
+                                parser_state.node_factory.discard_node(child4);
+                            }
+                            _ => {}
+                        }
                     }
                     _ => {}
                 },
@@ -546,6 +622,16 @@ pub fn evaluate_once(
                             *updated = true;
                             parser_state.node_factory[node_id].node_type =
                                 NodeType::Integer(BigInt::from(0));
+
+                            // 即値を移したので回収
+                            parser_state.node_factory.discard_node(child2);
+                        } else if i1 == BigInt::from(1) {
+                            *updated = true;
+                            parser_state.node_factory[node_id].node_type =
+                                parser_state.node_factory[child2].node_type.clone();
+
+                            // 即値を移したので回収
+                            parser_state.node_factory.discard_node(child1);
                         }
                     }
                     (_, NodeType::Integer(i2)) => {
@@ -553,6 +639,16 @@ pub fn evaluate_once(
                             *updated = true;
                             parser_state.node_factory[node_id].node_type =
                                 NodeType::Integer(BigInt::from(0));
+
+                            // 即値を移したので回収
+                            parser_state.node_factory.discard_node(child2);
+                        } else if i2 == BigInt::from(1) {
+                            *updated = true;
+                            parser_state.node_factory[node_id].node_type =
+                                parser_state.node_factory[child1].node_type.clone();
+
+                            // 即値を移したので回収
+                            parser_state.node_factory.discard_node(child1);
                         }
                     }
                     _ => {}
@@ -729,6 +825,9 @@ pub fn evaluate_once(
                     *updated = true;
                     parser_state.node_factory[node_id].node_type =
                         parser_state.node_factory[lazy_node].node_type.clone();
+
+                    // 即値を移したので回収
+                    parser_state.node_factory.discard_node(lazy_node);
                 }
                 _ => {
                     if !*updated {
