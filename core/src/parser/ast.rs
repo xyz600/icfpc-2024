@@ -324,7 +324,7 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
     let root_node_id = construct_node(&mut parser_state, &mut queue)?;
     parser_state.node_factory.root_id = root_node_id;
 
-    let debug = false;
+    let debug = true;
     {
         let mut visited = HashSet::new();
         alpha_convert(
@@ -337,8 +337,8 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
         print_node(&parser_state);
     }
 
-    for iter in 0..10_000_000 {
-        if iter % 10 == 0 {
+    for iter in 0..1_000 {
+        if iter % 1000 == 0 {
             println!(
                 "iter: {}, node_len: {}",
                 iter,
@@ -561,6 +561,20 @@ pub fn evaluate_once(
                     (NodeType::Integer(i1), NodeType::Integer(i2)) => {
                         *updated = true;
                         parser_state.node_factory[node_id].node_type = NodeType::Integer(i1 * i2);
+                    }
+                    (NodeType::Integer(i1), _) => {
+                        if i1 == BigInt::from(0) {
+                            *updated = true;
+                            parser_state.node_factory[node_id].node_type =
+                                NodeType::Integer(BigInt::from(0));
+                        }
+                    }
+                    (_, NodeType::Integer(i2)) => {
+                        if i2 == BigInt::from(0) {
+                            *updated = true;
+                            parser_state.node_factory[node_id].node_type =
+                                NodeType::Integer(BigInt::from(0));
+                        }
                     }
                     _ => {}
                 },
