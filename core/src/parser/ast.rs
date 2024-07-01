@@ -335,8 +335,15 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
     for iter in 0..10_000_000 {
         println!("iter: {}", iter);
         let mut updated = false;
+        let mut eval_node_visited: HashSet<usize> = HashSet::new();
         let root_id = parser_state.node_factory.root_id;
-        evaluate_once(&mut parser_state, root_id, &mut updated);
+        evaluate_once(
+            &mut parser_state,
+            root_id,
+            &mut updated,
+            0,
+            &mut eval_node_visited,
+        );
         print_node(&parser_state);
 
         if !updated {
@@ -388,10 +395,10 @@ pub fn substitute(
                     parser_state.node_factory[node_id].node_type = NodeType::Lazy(lazy_node_id);
                 }
             }
-            NodeType::Lazy(lazy_node_id) => {
-                if !visited.contains(&lazy_node_id) {
-                    visited.insert(lazy_node_id);
-                    substitute_inner(lazy_node_id, var_id, lazy_node_id, parser_state, visited);
+            NodeType::Lazy(inner_node_id) => {
+                if !visited.contains(&inner_node_id) {
+                    visited.insert(inner_node_id);
+                    substitute_inner(inner_node_id, var_id, lazy_node_id, parser_state, visited);
                 }
             }
         }
@@ -401,7 +408,50 @@ pub fn substitute(
     substitute_inner(root_node_id, var_id, node_id, parser_state, &mut visited);
 }
 
-pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &mut bool) {
+pub fn evaluate_once(
+    parser_state: &mut ParserState,
+    node_id: usize,
+    updated: &mut bool,
+    depth: usize,
+    eval_node_visited: &mut HashSet<usize>,
+) {
+    println!("depth: {}", depth);
+    println!(
+        "    node: {:?}",
+        parser_state.node_factory[node_id].node_type.clone()
+    );
+    match parser_state.node_factory[node_id].node_type.clone() {
+        NodeType::Unary(_, child) => println!(
+            "        child: {:?}",
+            parser_state.node_factory[child].node_type.clone()
+        ),
+        NodeType::Binary(_, child1, child2) => println!(
+            "        child1: {:?}, child2: {:?}",
+            parser_state.node_factory[child1].node_type.clone(),
+            parser_state.node_factory[child2].node_type.clone()
+        ),
+        NodeType::If(pred, first, second) => println!(
+            "        pred: {:?}, first: {:?}, second: {:?}",
+            parser_state.node_factory[pred].node_type.clone(),
+            parser_state.node_factory[first].node_type.clone(),
+            parser_state.node_factory[second].node_type.clone()
+        ),
+        NodeType::Lambda(_, child) => println!(
+            "        child: {:?}",
+            parser_state.node_factory[child].node_type.clone()
+        ),
+        NodeType::Lazy(lazy_node_id) => println!(
+            "        lazy: {:?}",
+            parser_state.node_factory[lazy_node_id].node_type.clone()
+        ),
+        _ => {}
+    };
+
+    if eval_node_visited.contains(&node_id) {
+        return;
+    }
+    eval_node_visited.insert(node_id);
+
     match parser_state.node_factory[node_id].node_type {
         // 値の場合はそのまま返す
         NodeType::Boolean(_)
@@ -444,7 +494,13 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
                 },
             }
             if !*updated {
-                evaluate_once(parser_state, child_id, updated);
+                evaluate_once(
+                    parser_state,
+                    child_id,
+                    updated,
+                    depth + 1,
+                    eval_node_visited,
+                );
             }
         }
         NodeType::Binary(opcode, child1, child2) => {
@@ -596,9 +652,9 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
                 },
             }
             if !*updated {
-                evaluate_once(parser_state, child2, updated);
+                evaluate_once(parser_state, child1, updated, depth + 1, eval_node_visited);
                 if !*updated {
-                    evaluate_once(parser_state, child1, updated);
+                    evaluate_once(parser_state, child2, updated, depth + 1, eval_node_visited);
                 }
             }
         }
@@ -616,11 +672,17 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
             }
             _ => {
                 if !*updated {
-                    evaluate_once(parser_state, pred, updated);
+                    evaluate_once(parser_state, pred, updated, depth + 1, eval_node_visited);
                     if !*updated {
-                        evaluate_once(parser_state, first, updated);
+                        evaluate_once(parser_state, first, updated, depth + 1, eval_node_visited);
                         if !*updated {
-                            evaluate_once(parser_state, second, updated);
+                            evaluate_once(
+                                parser_state,
+                                second,
+                                updated,
+                                depth + 1,
+                                eval_node_visited,
+                            );
                         }
                     }
                 }
@@ -628,7 +690,7 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
         },
         NodeType::Lambda(_var_id, child) => {
             if !*updated {
-                evaluate_once(parser_state, child, updated);
+                evaluate_once(parser_state, child, updated, depth + 1, eval_node_visited);
             }
         }
         NodeType::Lazy(lazy_node) => {
@@ -649,7 +711,13 @@ pub fn evaluate_once(parser_state: &mut ParserState, node_id: usize, updated: &m
                 }
                 _ => {
                     if !*updated {
-                        evaluate_once(parser_state, lazy_node, updated);
+                        evaluate_once(
+                            parser_state,
+                            lazy_node,
+                            updated,
+                            depth + 1,
+                            eval_node_visited,
+                        );
                     }
                 }
             }
