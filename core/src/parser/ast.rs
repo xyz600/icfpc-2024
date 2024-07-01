@@ -324,29 +324,45 @@ pub fn parse(input: String) -> Result<Node, ParseError> {
     let root_node_id = construct_node(&mut parser_state, &mut queue)?;
     parser_state.node_factory.root_id = root_node_id;
 
-    let mut visited = HashSet::new();
-    alpha_convert(
-        parser_state.node_factory.root_id,
-        &mut parser_state,
-        &mut visited,
-    );
-    print_node(&parser_state);
+    let debug = false;
+    {
+        let mut visited = HashSet::new();
+        alpha_convert(
+            parser_state.node_factory.root_id,
+            &mut parser_state,
+            &mut visited,
+        );
+    }
+    if debug {
+        print_node(&parser_state);
+    }
 
     for iter in 0..10_000_000 {
-        println!("iter: {}", iter);
+        if iter % 10 == 0 {
+            println!(
+                "iter: {}, node_len: {}",
+                iter,
+                parser_state.node_factory.node_buffer.len()
+            );
+        }
         let mut updated = false;
         let mut eval_node_visited: HashSet<usize> = HashSet::new();
         let root_id = parser_state.node_factory.root_id;
+
         evaluate_once(
             &mut parser_state,
             root_id,
             &mut updated,
             0,
             &mut eval_node_visited,
+            debug,
         );
-        print_node(&parser_state);
+        if debug {
+            print_node(&parser_state);
+        }
 
         if !updated {
+            println!("break because not updated");
             break;
         }
     }
@@ -408,44 +424,58 @@ pub fn substitute(
     substitute_inner(root_node_id, var_id, node_id, parser_state, &mut visited);
 }
 
+pub fn extract_node(parser_state: &mut ParserState, node_id: usize, updated: &mut bool) -> usize {
+    match parser_state.node_factory[node_id].node_type.clone() {
+        NodeType::Lazy(lazy_node_id) => {
+            let inner = extract_node(parser_state, lazy_node_id, updated);
+            parser_state.node_factory[node_id].node_type = NodeType::Lazy(inner);
+            inner
+        }
+        _ => node_id,
+    }
+}
+
 pub fn evaluate_once(
     parser_state: &mut ParserState,
     node_id: usize,
     updated: &mut bool,
     depth: usize,
     eval_node_visited: &mut HashSet<usize>,
+    debug: bool,
 ) {
-    println!("depth: {}", depth);
-    println!(
-        "    node: {:?}",
-        parser_state.node_factory[node_id].node_type.clone()
-    );
-    match parser_state.node_factory[node_id].node_type.clone() {
-        NodeType::Unary(_, child) => println!(
-            "        child: {:?}",
-            parser_state.node_factory[child].node_type.clone()
-        ),
-        NodeType::Binary(_, child1, child2) => println!(
-            "        child1: {:?}, child2: {:?}",
-            parser_state.node_factory[child1].node_type.clone(),
-            parser_state.node_factory[child2].node_type.clone()
-        ),
-        NodeType::If(pred, first, second) => println!(
-            "        pred: {:?}, first: {:?}, second: {:?}",
-            parser_state.node_factory[pred].node_type.clone(),
-            parser_state.node_factory[first].node_type.clone(),
-            parser_state.node_factory[second].node_type.clone()
-        ),
-        NodeType::Lambda(_, child) => println!(
-            "        child: {:?}",
-            parser_state.node_factory[child].node_type.clone()
-        ),
-        NodeType::Lazy(lazy_node_id) => println!(
-            "        lazy: {:?}",
-            parser_state.node_factory[lazy_node_id].node_type.clone()
-        ),
-        _ => {}
-    };
+    if debug {
+        println!("depth: {}", depth);
+        println!(
+            "    node: {:?}",
+            parser_state.node_factory[node_id].node_type.clone()
+        );
+        match parser_state.node_factory[node_id].node_type.clone() {
+            NodeType::Unary(_, child) => println!(
+                "        child: {:?}",
+                parser_state.node_factory[child].node_type.clone()
+            ),
+            NodeType::Binary(_, child1, child2) => println!(
+                "        child1: {:?}, child2: {:?}",
+                parser_state.node_factory[child1].node_type.clone(),
+                parser_state.node_factory[child2].node_type.clone()
+            ),
+            NodeType::If(pred, first, second) => println!(
+                "        pred: {:?}, first: {:?}, second: {:?}",
+                parser_state.node_factory[pred].node_type.clone(),
+                parser_state.node_factory[first].node_type.clone(),
+                parser_state.node_factory[second].node_type.clone()
+            ),
+            NodeType::Lambda(_, child) => println!(
+                "        child: {:?}",
+                parser_state.node_factory[child].node_type.clone()
+            ),
+            NodeType::Lazy(lazy_node_id) => println!(
+                "        lazy: {:?}",
+                parser_state.node_factory[lazy_node_id].node_type.clone()
+            ),
+            _ => {}
+        };
+    }
 
     if eval_node_visited.contains(&node_id) {
         return;
@@ -459,6 +489,7 @@ pub fn evaluate_once(
         | NodeType::String(_)
         | NodeType::Variable(_) => {}
         NodeType::Unary(opcode, child_id) => {
+            let child_id = extract_node(parser_state, child_id, updated);
             let child_type = parser_state.node_factory[child_id].node_type.clone();
 
             match opcode {
@@ -500,12 +531,17 @@ pub fn evaluate_once(
                     updated,
                     depth + 1,
                     eval_node_visited,
+                    debug,
                 );
             }
         }
         NodeType::Binary(opcode, child1, child2) => {
+            let child1 = extract_node(parser_state, child1, updated);
             let child_type1 = parser_state.node_factory[child1].node_type.clone();
+
+            let child2 = extract_node(parser_state, child2, updated);
             let child_type2 = parser_state.node_factory[child2].node_type.clone();
+
             match opcode {
                 BinaryOpecode::Add => match (child_type1, child_type2) {
                     (NodeType::Integer(i1), NodeType::Integer(i2)) => {
@@ -614,86 +650,125 @@ pub fn evaluate_once(
                 BinaryOpecode::Apply => match child_type1 {
                     NodeType::Lambda(var_id, child1_inner) => {
                         *updated = true;
-                        substitute(child1_inner, var_id, child2, parser_state);
-                        parser_state.node_factory[node_id].node_type =
-                            parser_state.node_factory[child1_inner].node_type.clone();
-                    }
-                    NodeType::Lazy(lazy_node_id) => {
-                        // lazy の中身がある場合は、そこも見る
-                        let lazy_node_type =
-                            parser_state.node_factory[lazy_node_id].node_type.clone();
-                        match lazy_node_type {
-                            NodeType::Lambda(lazy_var_id, lazy_child1_inner) => {
-                                // Apply の第1項が lambda の時、lambda の中身を substitute して更新するだけではなく、
-                                // Apply を適用した結果 lazy で上書きする必要がある
-                                // この時、既存の node を使いまわしてしまうと、apply した項としない項を区別できなくなってしまうので、
-                                // clone する必要がある
-                                *updated = true;
-                                let cloned_child1_node_id =
-                                    parser_state.shallow_clone(lazy_child1_inner);
-                                let new_var_id = parser_state.node_factory.get_var_id();
-                                let mut local_visited = HashSet::new();
-                                replace_var_id(
-                                    cloned_child1_node_id,
-                                    lazy_var_id,
-                                    new_var_id,
-                                    parser_state,
-                                    &mut local_visited,
-                                );
+                        // Apply の第1項が lambda の時、lambda の中身を substitute して更新するだけではなく、
+                        // Apply を適用した結果 lazy で上書きする必要がある
+                        // この時、既存の node を使いまわしてしまうと、apply した項としない項を区別できなくなってしまうので、
+                        // clone する必要がある
+                        // - apply
+                        //   - child1(lambda)
+                        //     - varX
+                        //     - child1_inner
+                        //   - child2
+                        // --------
+                        // - cloned_child1_inner
 
-                                substitute(cloned_child1_node_id, new_var_id, child2, parser_state);
-                                parser_state.node_factory[node_id].node_type =
-                                    NodeType::Lazy(cloned_child1_node_id);
-                            }
-                            _ => {}
-                        }
+                        let cloned_child1_node_id = parser_state.shallow_clone(child1_inner);
+                        let new_var_id = parser_state.node_factory.get_var_id();
+                        let mut local_visited = HashSet::new();
+                        replace_var_id(
+                            cloned_child1_node_id,
+                            var_id,
+                            new_var_id,
+                            parser_state,
+                            &mut local_visited,
+                        );
+                        substitute(cloned_child1_node_id, new_var_id, child2, parser_state);
+                        parser_state.node_factory[node_id].node_type = parser_state.node_factory
+                            [cloned_child1_node_id]
+                            .node_type
+                            .clone();
                     }
                     _ => {}
                 },
             }
             if !*updated {
-                evaluate_once(parser_state, child1, updated, depth + 1, eval_node_visited);
+                evaluate_once(
+                    parser_state,
+                    child1,
+                    updated,
+                    depth + 1,
+                    eval_node_visited,
+                    debug,
+                );
                 if !*updated {
-                    evaluate_once(parser_state, child2, updated, depth + 1, eval_node_visited);
+                    evaluate_once(
+                        parser_state,
+                        child2,
+                        updated,
+                        depth + 1,
+                        eval_node_visited,
+                        debug,
+                    );
                 }
             }
         }
-        NodeType::If(pred, first, second) => match parser_state.node_factory[pred].node_type {
-            NodeType::Boolean(b) => {
-                if b {
-                    *updated = true;
-                    parser_state.node_factory[node_id].node_type =
-                        parser_state.node_factory[first].node_type.clone();
-                } else {
-                    *updated = true;
-                    parser_state.node_factory[node_id].node_type =
-                        parser_state.node_factory[second].node_type.clone();
+        NodeType::If(pred, first, second) => {
+            let pred = extract_node(parser_state, pred, updated);
+            let first = extract_node(parser_state, first, updated);
+            let second = extract_node(parser_state, second, updated);
+
+            match parser_state.node_factory[pred].node_type {
+                NodeType::Boolean(b) => {
+                    if b {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type =
+                            parser_state.node_factory[first].node_type.clone();
+                    } else {
+                        *updated = true;
+                        parser_state.node_factory[node_id].node_type =
+                            parser_state.node_factory[second].node_type.clone();
+                    }
                 }
-            }
-            _ => {
-                if !*updated {
-                    evaluate_once(parser_state, pred, updated, depth + 1, eval_node_visited);
+                _ => {
                     if !*updated {
-                        evaluate_once(parser_state, first, updated, depth + 1, eval_node_visited);
+                        evaluate_once(
+                            parser_state,
+                            pred,
+                            updated,
+                            depth + 1,
+                            eval_node_visited,
+                            debug,
+                        );
                         if !*updated {
                             evaluate_once(
                                 parser_state,
-                                second,
+                                first,
                                 updated,
                                 depth + 1,
                                 eval_node_visited,
+                                debug,
                             );
+                            if !*updated {
+                                evaluate_once(
+                                    parser_state,
+                                    second,
+                                    updated,
+                                    depth + 1,
+                                    eval_node_visited,
+                                    debug,
+                                );
+                            }
                         }
                     }
                 }
             }
-        },
+        }
         NodeType::Lambda(_var_id, child) => {
+            let child = extract_node(parser_state, child, updated);
             if !*updated {
-                evaluate_once(parser_state, child, updated, depth + 1, eval_node_visited);
+                evaluate_once(
+                    parser_state,
+                    child,
+                    updated,
+                    depth + 1,
+                    eval_node_visited,
+                    debug,
+                );
             }
         }
         NodeType::Lazy(lazy_node) => {
+            let lazy_node = extract_node(parser_state, lazy_node, updated);
+
             // プリミティブ型に縮約された場合は、Lazy ノードを置換する
             match parser_state.node_factory[lazy_node].node_type {
                 NodeType::Boolean(_)
@@ -704,11 +779,6 @@ pub fn evaluate_once(
                     parser_state.node_factory[node_id].node_type =
                         parser_state.node_factory[lazy_node].node_type.clone();
                 }
-                NodeType::Lazy(next_var_id) => {
-                    // Lazy(x) -> Lazy(y) -> N のように Lazy 続きの場合は、 Lazy (x) -> N に縮約する
-                    *updated = true;
-                    parser_state.node_factory[node_id].node_type = NodeType::Lazy(next_var_id);
-                }
                 _ => {
                     if !*updated {
                         evaluate_once(
@@ -717,6 +787,7 @@ pub fn evaluate_once(
                             updated,
                             depth + 1,
                             eval_node_visited,
+                            debug,
                         );
                     }
                 }
@@ -907,6 +978,14 @@ mod tests {
         test_sequence(
             "B$ B$ L# L$ v# B. SB%,,/ S}Q/2,$_ IK",
             NodeType::String(ICFPString::from_rawstr("B%,,/}Q/2,$_").unwrap()),
+        )
+    }
+
+    #[test]
+    fn test_lambda_apply3() {
+        test_sequence(
+                    "B$ L! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! B$ v! I\" L! B+ B+ v! v! B+ v! v!",
+                    NodeType::Integer(BigInt::from(BigInt::from(17592186044416i64))),
         )
     }
 
